@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0e0f12">
+<title>Softbox</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Softbox">
+<style>
+  :root{
+    --bg:#0e0f12; --ink:#f2f2f3; --muted:rgba(242,242,243,.5); --faint:rgba(242,242,243,.07);
+    --accent:#ffd6a1; --green:#5fb98d; --brown:82,51,26;
+    --glow:255,214,160; --level:.5;
+    --ease:cubic-bezier(.22,.68,.16,1);
+  }
+  *{ box-sizing:border-box; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; height:100%; background:var(--bg); color:var(--ink); overflow:hidden;
+    font:14px/1.4 -apple-system,"SF Pro Text",system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  .app{ position:relative; height:100vh; display:flex; flex-direction:column;
+    padding:calc(14px + env(safe-area-inset-top)) 14px calc(10px + env(safe-area-inset-bottom)); }
+  .room{ position:absolute; inset:0; pointer-events:none; transition:opacity .6s;
+    background:radial-gradient(75% 60% at 50% 50%, rgba(var(--glow), calc(.16 * var(--level) + .03)), transparent 72%); }
+  .off .room{ opacity:0; }
+
+  .bar{ position:relative; display:flex; align-items:center; justify-content:space-between; height:28px; padding:0 8px 0 10px; }
+  .name{ font-size:13px; font-weight:600; color:var(--muted); }
+  .icon-btn{ width:30px; height:30px; display:grid; place-items:center; border:0; background:none; color:var(--muted); cursor:pointer; border-radius:50%; }
+  .icon-btn:hover{ color:var(--ink); }
+  .icon-btn:focus-visible{ outline:2px solid rgba(var(--glow),.8); }
+
+  /* the lamp: fills the panel, chubby-square shape, and is also a map */
+  .lampbox{ position:relative; flex:1; margin-top:6px; }
+  .lamp{ position:absolute; inset:0; overflow:visible; touch-action:none; cursor:grab; }
+  .lamp:active{ cursor:grabbing; }
+  .lamp:focus, .lamp:focus-visible{ outline:none; }
+  .lamp .face{ transition:filter .45s var(--ease); filter:brightness(calc(.6 + .55 * var(--level))) drop-shadow(0 0 26px rgba(var(--glow), calc(.32 * var(--level) + .05))); }
+  .off .lamp .face{ filter:none; }
+
+  .num{ position:absolute; left:0; right:0; top:46%; transition:top .45s var(--ease), transform .35s var(--ease), color .4s; transform:translateY(-50%); display:flex; justify-content:center; align-items:baseline;
+    color:rgba(var(--brown),.55); pointer-events:none; transition:transform .35s var(--ease), color .4s; }
+  .num.big{ transform:translateY(-50%) scale(1.08); }
+  .pname{ position:absolute; left:0; right:0; top:calc(46% + 50px); transform:translateY(-50%); text-align:center; font-size:24px; font-weight:300;
+    color:rgba(var(--brown),.5); pointer-events:none; opacity:0; transition:opacity .3s, top .45s var(--ease); }
+  .pname.show{ opacity:1; }
+  .off .num{ color:rgba(242,242,243,.35); }
+  .digits{ display:flex; font-size:72px; font-weight:200; letter-spacing:-1px; line-height:1; font-variant-numeric:tabular-nums; }
+  .col{ height:1em; overflow:hidden; display:inline-block; }
+  .strip{ display:flex; flex-direction:column; transition:transform .4s var(--ease); }
+  .strip span{ height:1em; display:block; text-align:center; }
+  .unit{ font-size:22px; font-weight:300; margin-left:2px; }
+  .word{ font-size:64px; font-weight:200; }
+
+  .level{ position:absolute; left:0; right:0; height:34px; margin-top:-17px; cursor:ns-resize; touch-action:none; transition:top .3s var(--ease); }
+  .level .seg{ position:absolute; top:16.5px; height:1px; background:rgba(var(--brown),.4); pointer-events:none; }
+  .level .segs{ position:absolute; inset:0; pointer-events:none; }
+  .level:focus-visible{ outline:none; } .level:focus-visible .seg{ background:rgba(var(--brown),.6); }
+  .dragging .level, .dragging .ring{ transition:none; }
+  .dragging .ring{ transform:scale(1.15); }
+  .off .level{ display:none; }
+  .power{ font-size:11px; line-height:1.5; color:rgba(242,242,243,.4); margin-top:30px; }
+  .power b{ color:var(--ink); font-weight:500; }
+  .ring{ position:absolute; width:28px; height:28px; margin:-14px 0 0 -14px; border-radius:50%;
+    border:1px solid rgba(var(--brown),.4); pointer-events:none; transition:left .3s var(--ease), top .3s var(--ease), width .3s var(--ease), height .3s var(--ease), margin .3s var(--ease), transform .3s var(--ease), opacity .4s; }
+  .off .ring{ opacity:0; }
+
+  .preset{ position:absolute; width:40px; height:40px; margin:-20px 0 0 -20px; border:0; padding:0; background:none; cursor:pointer;
+    display:grid; place-items:center; transition:left .3s var(--ease), top .3s var(--ease); touch-action:none; }
+  .preset.moving{ transition:none; z-index:3; cursor:grabbing; }
+  .preset .dot{ width:20px; height:20px; border-radius:50%; background:var(--c);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.6), 0 1px 3px rgba(var(--brown),.25);
+    transition:width .25s var(--ease), height .25s var(--ease), box-shadow .25s; }
+  .preset.moving .dot{ width:32px; height:32px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.7), 0 6px 18px rgba(var(--brown),.35); }
+  .preset:focus-visible{ outline:2px solid rgba(var(--glow),.9); border-radius:50%; }
+  .plabel{ position:absolute; top:calc(50% + 24px); left:50%; transform:translate(-50%,-50%); white-space:nowrap; pointer-events:none;
+    font-size:11px; font-weight:600; color:rgba(var(--brown),.6); font-variant-numeric:tabular-nums; transition:top .25s var(--ease), left .25s var(--ease), opacity .25s; }
+  .off .plabel{ color:rgba(242,242,243,.45); }
+
+  .under{ display:flex; flex-direction:column; align-items:center; padding-top:8px; }
+  .offdot{ width:44px; height:32px; border:0; background:none; padding:0; cursor:pointer; display:grid; place-items:center; }
+  .offdot span{ width:18px; height:18px; border-radius:50%; background:#38393e; box-shadow:inset 0 0 0 1px rgba(255,255,255,.35); transition:box-shadow .2s, background .2s; }
+  .offdot:hover span, .off .offdot span{ background:#4d4e53; box-shadow:inset 0 0 0 1px rgba(255,255,255,.6); }
+  .offdot:focus-visible{ outline:2px solid rgba(var(--glow),.9); border-radius:10px; }
+  .foot{ text-align:center; font-size:11px; color:var(--muted); height:18px; }
+
+  /* loader: the icon, breathing */
+  .loader{ position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
+    opacity:0; pointer-events:none; transition:opacity .6s; z-index:5; }
+  .loader.show{ opacity:1; pointer-events:auto; }
+  .loader .lamp-i{ position:relative; width:72px; height:104px; animation:breathe 3.6s ease-in-out infinite; will-change:transform; }
+  .loader .halo{ position:absolute; left:50%; top:50%; width:230px; height:270px; margin:-135px 0 0 -115px; border-radius:50%;
+    background:radial-gradient(closest-side, rgba(255,204,150,.45), transparent 75%); animation:halo 3.6s ease-in-out infinite; will-change:transform; }
+  .loader .msg{ font-size:13px; font-weight:500; letter-spacing:.01em; text-align:center;
+    background:linear-gradient(90deg, rgba(242,242,243,.3) 0%, rgba(242,242,243,.3) 35%, rgba(255,255,255,.95) 50%, rgba(242,242,243,.3) 65%, rgba(242,242,243,.3) 100%);
+    background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:shimmer 2.4s linear infinite; }
+  @keyframes shimmer{ from{ background-position:100% 0; } to{ background-position:0 0; } }
+  @keyframes breathe{ 0%,100%{ filter:brightness(.86); transform:scale(.96); } 50%{ filter:brightness(1.03); transform:scale(1.1); } }
+  @keyframes halo{ 0%,100%{ opacity:.35; transform:scale(.8); } 50%{ opacity:1; transform:scale(1.1); } }
+
+  /* settings */
+  .sheet{ position:absolute; inset:0; background:#121317; z-index:6; padding:calc(16px + env(safe-area-inset-top)) 20px 20px; overflow-y:auto;
+    transform:translateY(16px); opacity:0; pointer-events:none; transition:opacity .28s, transform .32s var(--ease); }
+  .sheet.open{ transform:none; opacity:1; pointer-events:auto; }
+  .sheet .top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+  .sheet .top b{ font-size:16px; font-weight:600; }
+  .done{ border:0; background:none; color:var(--accent); font:inherit; font-size:14px; cursor:pointer; padding:4px; }
+  h3{ font-size:11px; font-weight:600; color:rgba(242,242,243,.45); letter-spacing:.06em; text-transform:uppercase; margin:20px 0 10px; }
+  .sig{ padding:12px 0 14px; border-bottom:1px solid var(--faint); }
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .row b{ font-weight:500; font-size:14px; }
+  .row small{ display:block; color:var(--muted); font-size:12px; margin-top:2px; }
+  .chips{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .chip{ font:inherit; font-size:12.5px; color:var(--ink); background:var(--faint); border:1px solid transparent; border-radius:14px; padding:14px 0 10px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:9px; }
+  .chip svg{ display:block; overflow:visible; }
+  .chip:hover{ background:rgba(var(--glow),.12); }
+  .chip.sel{ border-color:rgba(255,214,161,.85); background:rgba(255,214,161,.16); }
+  .chip:focus-visible{ outline:2px solid rgba(var(--glow),.8); }
+  .dim{ opacity:.45; }
+  .link{ border:0; background:none; color:var(--accent); font:inherit; font-size:13px; cursor:pointer; padding:14px 0 0; }
+  .sw{ position:relative; width:42px; height:25px; flex:none; border:0; border-radius:13px; background:rgba(242,242,243,.16); cursor:pointer; transition:background .25s; }
+  .sw[aria-checked=true]{ background:var(--green); }
+  .sw::after{ content:""; position:absolute; top:3px; left:3px; width:19px; height:19px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.35); transition:transform .25s var(--ease); }
+  .sw[aria-checked=true]::after{ transform:translateX(17px); }
+  .sw:focus-visible{ outline:2px solid rgba(var(--glow),.8); outline-offset:2px; }
+  .hint{ font-size:12.5px; color:rgba(242,242,243,.55); margin:-2px 0 12px; }
+  .shortcuts{ display:inline-flex; align-items:center; gap:8px; padding:9px 14px; border-radius:10px; text-decoration:none;
+    color:var(--ink); background:var(--faint); font-size:13px; font-weight:500; }
+  .shortcuts:hover{ background:rgba(var(--glow),.14); }
+  .chip.playing{ border-color:rgba(255,214,161,.85); background:rgba(255,214,161,.12); }
+  .note{ font-size:11px; color:rgba(242,242,243,.38); margin-top:26px; }
+  .boot .lampbox, .boot .lampbox *, .boot .room, .boot .foot{ transition:none !important; }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body class="boot">
+<div class="app" id="app">
+  <div class="room"></div>
+  <div class="bar">
+    <span class="name">Softbox</span>
+    <button class="icon-btn" id="gear" aria-label="Settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <div class="lampbox" id="box">
+    <svg class="lamp" id="lamp" role="slider" aria-label="Light: drag up or down for brightness, sideways for warmth; tap to switch" tabindex="0">
+      <defs>
+        <radialGradient id="faceGrad" cx="50%" cy="40%" r="75%">
+          <stop id="g0" offset="0%" stop-color="#fff7ec"/>
+          <stop id="g1" offset="50%" stop-color="#ffd7a8"/>
+          <stop id="g2" offset="100%" stop-color="#f2b77a"/>
+        </radialGradient>
+      </defs>
+      <path class="face" id="face" fill="url(#faceGrad)"/>
+    </svg>
+    <div class="level" id="level" role="slider" tabindex="0" aria-label="Brightness, drag up for more light" aria-valuemin="1" aria-valuemax="100"><div class="segs"><b class="seg" id="segL"></b><b class="seg" id="segR"></b></div></div>
+    <div class="ring" id="ring"></div>
+    <div class="pname" id="pname">&nbsp;</div>
+    <div class="num" id="num"><span class="digits" id="digits"></span><span class="unit" id="unit">%</span></div>
+    <div id="presets"></div>
+  </div>
+
+  <div class="under"><button class="offdot" id="offdot" aria-label="Off"><span></span></button><div class="foot" id="foot">&nbsp;</div></div>
+
+  <div class="loader show" id="loader">
+    <div class="lamp-i"><div class="halo"></div><svg width="72" height="104" viewBox="0 0 72 104" style="position:relative"><defs><radialGradient id="lg" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#fff7ee"/><stop offset=".5" stop-color="#ffd6a8"/><stop offset="1" stop-color="#f0b075"/></radialGradient></defs><path id="loaderPath" fill="url(#lg)"/></svg></div>
+    <div class="msg" id="loadmsg">Connecting</div>
+  </div>
+
+  <div class="sheet" id="sheet" role="dialog" aria-label="Settings">
+    <div class="top"><b>Settings</b><button class="done" id="done">Done</button></div>
+    <h3>Automations</h3>
+    <div class="hint">Run the light from any automation.</div>
+    <a class="shortcuts" href="shortcuts://"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></svg>Open Shortcuts</a>
+    <h3>Effects</h3>
+    <div class="hint">Click to play on the light.</div>
+    <div class="chips" id="fx"></div>
+    <h3>Rhythm</h3>
+    <div class="row"><div><b>Daylight</b><small>Cool by day, warm by evening</small></div>
+      <button class="sw" id="daylight" role="switch" aria-checked="false" aria-label="Daylight"></button></div>
+    <div class="power" id="power"></div>
+    <button class="link" id="reset">Reset presets</button>
+  </div>
+</div>
+
+<script>
+const H={"Content-Type":"application/json","X-Lightd":"1"};
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const KMIN=2900,KMAX=7000;
+const api=(p,b)=>fetch(p,{method:'POST',headers:H,body:JSON.stringify(b||{})}).catch(()=>{});
+
+function kelvinRGB(k){const t=k/100;let r,g,b;
+  if(t<=66){r=255;g=99.47*Math.log(t)-161.1;b=t<=19?0:138.5*Math.log(t-10)-305.0;}
+  else{r=329.7*Math.pow(t-60,-0.1332);g=288.1*Math.pow(t-60,-0.0755);b=255;}
+  return [r,g,b].map(x=>Math.round(clamp(x,0,255)));}
+const mix=(c,w,f)=>c.map((v,i)=>Math.round(v+(w[i]-v)*f));
+const rgb=c=>`rgb(${c[0]},${c[1]},${c[2]})`;
+
+// the chubby square: superellipse |x/a|^n + |y/b|^n = 1
+function squircle(cx,cy,w,h,n=4,steps=200){
+  const a=w/2,b=h/2;let d='';
+  for(let i=0;i<steps;i++){const t=2*Math.PI*i/steps,c=Math.cos(t),s=Math.sin(t);
+    const x=cx+a*Math.sign(c)*Math.pow(Math.abs(c),2/n), y=cy+b*Math.sign(s)*Math.pow(Math.abs(s),2/n);
+    d+=(i?'L':'M')+x.toFixed(1)+','+y.toFixed(1);}
+  return d+'Z';
+}
+$('#loaderPath').setAttribute('d',squircle(36,52,72,104));
+
+let st={on:1,brightness:50,kelvin:4500,connected:false}; let pw={maxBrightness:100,maxLumen:null,watts:null};
+let scenes=[], W=0, Hh=0;
+let axis=0, dragging=false, movingId=null;
+
+// brightness on a 1-100 scale of what the current power allows (100% = the most the charger permits)
+const capB=()=>Math.max(1,Math.min(100,pw.maxBrightness||100));
+const rel=()=>clamp(Math.round(st.brightness*100/capB()),1,100);
+const actual=r=>clamp(Math.round(clamp(r,1,100)*capB()/100),1,capB());
+
+function layout(){
+  const r=$('#box').getBoundingClientRect(); W=r.width; Hh=r.height;
+  const svg=$('#lamp'); svg.setAttribute('viewBox',`0 0 ${W} ${Hh}`);
+  $('#face').setAttribute('d',squircle(W/2,Hh/2,W,Hh));
+  placeAll();
+}
+// map warmth/brightness <-> a point on the lamp (warm left, cool right; bright top, dim bottom)
+// the map is the whole lamp: edge to edge, following its rounded outline
+const M=22;
+function inside(x,y){ const cx=W/2, cy=Hh/2, a=W/2-M, b=Hh/2-M;
+  let u=(x-cx)/a, v=(y-cy)/b; const r=Math.pow(Math.pow(Math.abs(u),4)+Math.pow(Math.abs(v),4),.25);
+  if(r>1){ u/=r; v/=r; } return {x:cx+u*a, y:cy+v*b}; }
+// half the lamp's width at height y, 10px in from its outline
+function edgeHalf(y){ const a=W/2-10, b=Hh/2-10, v=Math.min(1,Math.abs((y-Hh/2)/b)); return a*Math.pow(1-Math.pow(v,4),.25); }
+// the ring sits exactly on a preset when the light is set to it
+const onPreset=()=>scenes.find(sc=>sc.action.on===1 && Math.abs(sc.action.kelvin-st.kelvin)<=60 && actual(sc.action.brightness)===st.brightness);
+// a circle's name: under it, or above it near the bottom, slid in so it stays inside the lamp
+function placeLabel(btn,p){
+  const lab=btn.querySelector('.plabel'); const w=lab.offsetWidth||60, half=w/2+4;
+  const fits=(x,y)=>{ const a=W/2-half, b=Hh/2-12; return a>0 && Math.pow(Math.abs((x-W/2)/a),4)+Math.pow(Math.abs((y-Hh/2)/b),4)<=1; };
+  const gap=btn.classList.contains('moving')?30:24;
+  let y=p.y+gap; if(p.y>Hh*.82 || (!fits(p.x,y) && fits(p.x,p.y-gap))) y=p.y-gap;
+  let x=p.x; for(let i=0;i<40 && !fits(x,y);i++) x+= (x<W/2?4:-4);
+  lab.style.left=`calc(50% + ${x-p.x}px)`; lab.style.top=`calc(50% + ${y-p.y}px)`;
+  // hide a small name when the big name already shows it, or when it would sit under the big text
+  const moving=btn.classList.contains('moving');
+  const under=Math.abs(x-blk.x)<(blk.hw||60)+half && Math.abs(y-blk.y)<58+8;
+  lab.style.opacity = moving || !((curOp && curOp.id===btn.dataset.id) || under) ? 1 : 0;
+}
+const spot=(k,b)=>inside(M+(k-KMIN)/(KMAX-KMIN)*(W-2*M), M+(1-b/100)*(Hh-2*M));
+let live=null, blk={x:0,y:0}, curOp=null;   // the ring under the pointer while dragging
+function unspot(x,y){
+  const kx=clamp((x-M)/(W-2*M),0,1), by=clamp(1-(y-M)/(Hh-2*M),0,1);
+  return {k:Math.round((KMIN+kx*(KMAX-KMIN))/50)*50, b:Math.max(1,Math.round(by*100))};
+}
+
+// rolling digits, like an odometer
+function setNumber(text,unit){
+  const el=$('#digits');
+  if(!/^\d+$/.test(text)){ el.innerHTML=`<span class="word">${text}</span>`; $('#unit').textContent=''; return; }
+  if(el.querySelector('.word')) el.innerHTML='';
+  while(el.children.length<text.length){
+    const col=document.createElement('span'); col.className='col';
+    col.innerHTML='<span class="strip">'+[...'0123456789'].map(d=>`<span>${d}</span>`).join('')+'</span>';
+    el.prepend(col);
+  }
+  while(el.children.length>text.length) el.firstChild.remove();
+  [...text].forEach((d,i)=>{ el.children[i].firstChild.style.transform=`translateY(${-d}em)`; });
+  $('#unit').textContent=unit;
+}
+
+function paint(){
+  const app=$('#app');
+  app.classList.toggle('off',!st.on);
+  const c=kelvinRGB(st.kelvin), w=[255,255,255];
+  const s=document.documentElement.style;
+  s.setProperty('--glow',c.join(','));
+  s.setProperty('--level',(st.brightness/100).toFixed(3));
+  if(st.on){
+    $('#g0').setAttribute('stop-color',rgb(mix(c,w,.25+.4*st.brightness/100)));
+    $('#g1').setAttribute('stop-color',rgb(c));
+    $('#g2').setAttribute('stop-color',rgb(mix(c,[200,120,60],.18)));
+  }else{
+    ['#g0','#g1','#g2'].forEach(id=>$(id).setAttribute('stop-color','#24252a'));
+  }
+  if(!st.on) setNumber('Off',''); else setNumber(String(rel()),'%');
+  $('#num').classList.toggle('big',axis!==0);
+  const op=st.on?(movingId?scenes.find(x=>x.id===movingId):onPreset()):null;
+  curOp=op;
+  $('#pname').classList.toggle('show',!!op); if(op) $('#pname').innerHTML=`<span>${op.label}</span>`; const p=live||(op?spot(op.action.kelvin,op.action.brightness):spot(st.kelvin,rel())); const r=$('#ring'); r.style.left=p.x+'px'; r.style.top=p.y+'px';
+  const lv=$('#level'); lv.style.top=p.y+'px'; lv.setAttribute('aria-valuenow',rel());
+  const gap=14, half=edgeHalf(p.y), L=W/2-half, R=W/2+half;
+  $('#segL').style.cssText=`left:${L}px;width:${Math.max(0,p.x-gap-L)}px`; $('#segR').style.cssText=`left:${p.x+gap}px;width:${Math.max(0,R-p.x-gap)}px`;
+  app.classList.toggle('dragging',!!live);
+  // the big number + name step above or below the line so they never cross it
+  const mid=Hh*.5, clear=58+18; let by=mid;
+  if(st.on && Math.abs(p.y-mid)<clear){ by=p.y>mid?p.y-clear:p.y+clear; by=clamp(by,clear,Hh-clear); }
+  const nw=($('#digits').offsetWidth||0)+($('#unit').offsetWidth||0), pw2=op?($('#pname span')?.offsetWidth||0):0;
+  blk={x:W/2,y:by,hw:Math.max(nw,pw2)/2+6};
+  $('#num').style.top=(by-16)+'px'; $('#pname').style.top=(by+36)+'px';
+  document.querySelectorAll('.preset').forEach(b=>placeLabel(b,{x:parseFloat(b.style.left)||0,y:parseFloat(b.style.top)||0}));
+  const lim = capB()<100 ? `   ·   max ${capB()}%`+(pw.watts?` on ${pw.watts}W`:'') : '';
+  $('#foot').textContent = st.on ? `${st.kelvin}K${lim}` : 'Standby';
+}
+
+// presets, each at its own spot on the map
+function renderPresets(){
+  const box=$('#presets'); box.innerHTML='';
+  scenes.filter(sc=>sc.action.on!==0).forEach(sc=>{
+    const b=document.createElement('button'); b.className='preset'; b.dataset.id=sc.id;
+    b.setAttribute('aria-label',sc.label);
+    const a=sc.action, c=a.on===0?[77,78,83]:kelvinRGB(a.kelvin||4500);
+    b.style.setProperty('--c',rgb(c));
+    b.innerHTML=`<span class="dot"></span><span class="plabel">${sc.label}</span>`;
+    attachPreset(b,sc);
+    box.appendChild(b);
+  });
+  placeAll();
+}
+function placeAll(){
+  document.querySelectorAll('.preset').forEach(b=>{
+    const sc=scenes.find(s=>s.id===b.dataset.id); if(!sc) return;
+    const p=spot(sc.action.kelvin,sc.action.brightness);
+    b.style.left=p.x+'px'; b.style.top=p.y+'px'; placeLabel(b,p);
+  });
+  paint();
+}
+
+// tap a circle to use it; drag it to move it (Off stays put)
+function attachPreset(btn,sc){
+  let timer=null, start=null, picked=false, moved=false, last=0, pid=null;
+  btn.addEventListener('pointerdown',e=>{
+    e.stopPropagation(); pid=e.pointerId; btn.setPointerCapture(pid);
+    start={x:e.clientX,y:e.clientY}; picked=false; moved=false;
+    const o=spot(sc.action.kelvin,sc.action.brightness); const r=$('#box').getBoundingClientRect();
+    start.ox=o.x-(e.clientX-r.left); start.oy=o.y-(e.clientY-r.top);
+  });
+  btn.addEventListener('pointermove',e=>{
+    if(!start) return;
+    const dx=e.clientX-start.x, dy=e.clientY-start.y;
+    if(!picked){
+      if(sc.action.on!==1 || Math.hypot(dx,dy)<=4) return;     // a drag starts the move
+      picked=true; movingId=sc.id; btn.classList.add('moving');
+    }
+    moved=true;
+    const r=$('#box').getBoundingClientRect();
+    const p=inside(e.clientX-r.left+start.ox, e.clientY-r.top+start.oy);
+    const {k,b}=unspot(p.x,p.y);
+    sc.action.kelvin=k; sc.action.brightness=b;
+    btn.style.setProperty('--c',rgb(kelvinRGB(k)));
+    btn.style.left=p.x+'px'; btn.style.top=p.y+'px';
+    btn.querySelector('.plabel').textContent=`${k}K · ${b}%`; placeLabel(btn,p);
+    const now=Date.now(); if(now-last>90){ last=now; st={...st,on:1,kelvin:k,brightness:actual(b)}; paint(); api('/api/set',{on:1,kelvin:k,brightness:actual(b)}); }
+  });
+  const end=()=>{
+    clearTimeout(timer); timer=null;
+    if(picked){
+      btn.classList.remove('moving'); btn.querySelector('.plabel').textContent=sc.label; placeAll();
+      if(moved) api('/api/config',{events:{[sc.id]:{action:{kelvin:sc.action.kelvin,brightness:sc.action.brightness}}}});
+      movingId=null;
+    }else if(start){
+      api('/api/event/'+sc.id+'?force=1');
+      if(sc.action.on===1){ st={...st,on:1,kelvin:sc.action.kelvin,brightness:actual(sc.action.brightness)}; } else st={...st,on:0};
+      paint();
+    }
+    start=null;
+  };
+  btn.addEventListener('pointerup',end); btn.addEventListener('pointercancel',end);
+  btn.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); api('/api/event/'+sc.id+'?force=1'); setTimeout(poll,400); }});
+}
+
+// the lamp: tap or drag anywhere to put the light at that point (warmth by side, brightness by height).
+// The line across it is brightness only: drag it up for more light. Nothing here switches the light off.
+(function(){
+  const el=$('#lamp'); let sendT;
+  const push=()=>{ clearTimeout(sendT); sendT=setTimeout(()=>api('/api/set',{on:1,brightness:st.brightness,kelvin:st.kelvin}),70); };
+  const at=e=>{ const r=$('#box').getBoundingClientRect(); live=inside(e.clientX-r.left,e.clientY-r.top); return unspot(live.x,live.y); };
+  const settle=()=>{ clearTimeout(window._ax); window._ax=setTimeout(()=>{axis=0;paint();},700); };
+  el.addEventListener('pointerdown',e=>{ if(!st.connected) return; dragging=true; axis=1; el.setPointerCapture(e.pointerId);
+    const {k,b}=at(e); st.on=1; st.kelvin=k; st.brightness=actual(b); paint(); push(); });
+  el.addEventListener('pointermove',e=>{ if(!dragging) return;
+    const {k,b}=at(e); st.kelvin=k; st.brightness=actual(b); paint(); push(); });
+  const end=()=>{ if(!dragging) return; dragging=false; live=null; settle(); paint(); };
+  el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+
+  const line=$('#level');
+  line.addEventListener('pointerdown',e=>{ if(!st.connected) return; e.stopPropagation(); dragging=true; axis=1; line.setPointerCapture(e.pointerId); line.classList.add('active'); });
+  line.addEventListener('pointermove',e=>{ if(!dragging) return;
+    const r=$('#box').getBoundingClientRect(); const x=(live||spot(st.kelvin,rel())).x;
+    live=inside(x,e.clientY-r.top); const {b}=unspot(live.x,live.y);
+    st.on=1; st.brightness=actual(b); paint(); push(); });
+  const lend=()=>{ if(!dragging) return; dragging=false; live=null; line.classList.remove('active'); settle(); paint(); };
+  line.addEventListener('pointerup',lend); line.addEventListener('pointercancel',lend);
+  line.addEventListener('keydown',e=>{ if(!st.connected) return; let d=0;
+    if(e.key==='ArrowUp') d=5; else if(e.key==='ArrowDown') d=-5; else return;
+    e.preventDefault(); axis=1; st.on=1; st.brightness=actual(clamp(rel()+d,1,100)); paint(); push(); settle(); });
+})();
+
+// settings
+function buildSettings(s){
+  // the three effects, each with a little lamp playing it; click to play it on the light
+  const box=$('#fx');
+  box.innerHTML=s.effects.map((fx,i)=>`<button class="chip" data-fx="${fx.id}" title="${fx.desc}">${miniLamp(fx.id,i)}<span>${fx.label}</span></button>`).join('');
+  box.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    box.querySelectorAll('.chip').forEach(x=>x.classList.remove('playing')); c.classList.add('playing');
+    api('/api/action',{effect:c.dataset.fx});
+    clearTimeout(c._t); c._t=setTimeout(()=>c.classList.remove('playing'), (FX_LEN[c.dataset.fx]||5)*1000);
+  });
+  $('#daylight').setAttribute('aria-checked',s.daylight);
+}
+$('#daylight').onclick=e=>{ const n=e.currentTarget.getAttribute('aria-checked')!=='true'; e.currentTarget.setAttribute('aria-checked',n); api('/api/config',{daylight:n}); };
+$('#reset').onclick=()=>{ api('/api/config',{resetScenes:true}).then(()=>poll(true)); };
+$('#offdot').onclick=()=>{ const off=scenes.find(sc=>sc.action.on===0);
+  if(off) api('/api/event/'+off.id+'?force=1'); else api('/api/set',{on:0});
+  st={...st,on:0}; paint(); };
+$('#gear').onclick=()=>$('#sheet').classList.add('open');
+$('#done').onclick=()=>$('#sheet').classList.remove('open');
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#sheet').classList.remove('open'); });
+
+function renderPower(){
+  const src=pw.watts?`${pw.watts}W USB power`:'USB power';
+  $('#power').textContent = pw.maxBrightness>=100 ? `${src}. Full brightness available.` : `Max ${pw.maxBrightness}% on ${src}. 30W USB-C gives full light.`;
+}
+let built=false;
+async function poll(force){
+  try{
+    const s=await (await fetch('/api/state',{cache:'no-store'})).json();
+    st.connected=s.connected;
+    $('#loader').classList.toggle('show',!s.connected);
+    if(!dragging && !movingId){ st.on=s.on; st.brightness=s.brightness; st.kelvin=s.kelvin; }
+    if(s.power){ pw=s.power; renderPower(); }
+    const sc=s.events.filter(e=>e.kind==='scene');
+    if(!movingId && (force || !built || JSON.stringify(sc)!==JSON.stringify(scenes))){ scenes=sc; renderPresets(); }
+    if(!built){ buildSettings(s); built=true; }
+    paint();
+    if(document.body.classList.contains('boot') && s.connected)
+      requestAnimationFrame(()=>requestAnimationFrame(()=>document.body.classList.remove('boot')));
+  }catch(e){
+    st.connected=false; $('#loader').classList.add('show'); $('#loadmsg').textContent='Connecting';
+  }
+}
+new ResizeObserver(layout).observe($('#box'));
+// --- effect previews: a little lamp per effect, looping the way the light moves ---
+const swell=x=>(1-Math.cos(x*2*Math.PI))/2;
+const FX_LEN={breath:5.4};
+const ease=x=>(1-Math.cos(x*Math.PI))/2;
+function keys(k,t){ for(let i=1;i<k.length;i++) if(t<=k[i][0]){ const [t0,v0]=k[i-1],[t1,v1]=k[i]; return v0+(v1-v0)*ease((t-t0)/(t1-t0)); } return k[k.length-1][1]; }
+// the flicker: three soft beats (slow rise, quicker settle), then a rest
+function fxFrame(id,t){
+  t%= (FX_LEN[id]||5.4);
+  if(t>=3.9) return {l:.62,w:0};
+  const b=t%1.3; return {l: .62+.28*(b<.8 ? ease(b/.8) : 1-ease((b-.8)/.5)), w:0};
+}
+const MINI=squircle(11,15,22,30);
+function miniLamp(id,i){ return `<svg class="mini" data-fx="${id}" data-i="${i}" width="22" height="30" viewBox="0 0 22 30"><path d="${MINI}"/></svg>`; }
+(function tick(now){
+  const t=now/1000;
+  document.querySelectorAll('svg.mini').forEach(m=>{
+    const f=fxFrame(m.dataset.fx, t+(+m.dataset.i)*.45);
+    const c=kelvinRGB(Math.round(5200-2300*f.w));
+    const p=m.firstChild; p.setAttribute('fill',rgb(mix(c,[255,255,255],.25)));
+    m.style.filter=`brightness(${(.4+.6*f.l).toFixed(3)}) drop-shadow(0 0 ${(1+11*f.l).toFixed(1)}px rgba(${c.join(',')},${(.6*f.l).toFixed(2)}))`;
+  });
+  requestAnimationFrame(tick);
+})(0);
+
+// opening the panel: no transitions until the first real state is on screen
+window.kl={ refresh:()=>poll(true) };
+layout(); poll(); setInterval(poll,1500);
+</script>
+</body>
+</html>

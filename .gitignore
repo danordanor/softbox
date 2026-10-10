@@ -1,0 +1,17 @@
+# your light's credentials: never commit these
+*.p12
+*.key
+*.pem
+*.crt
+client-chain.crt
+
+# build and local state
+__pycache__/
+*.pyc
+.built
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+test/mock.pem

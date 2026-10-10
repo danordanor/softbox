@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# light: tiny command-line front end for the lightd bridge.
+#
+#   light on | off | toggle
+#   light b 50              brightness 1-100
+#   light warm | cool | day
+#   light k 4500            color temperature in kelvin
+#   light <moment>          run a saved moment (focus, meeting, evening, off, ...)
+#   light signal <id>       fire a signal (claude-waiting, claude-done)
+#   light breath                    play the flicker effect
+#   light test              play three effects in a row
+#   light panel             open the control panel in the browser
+#   light status            print current state
+#
+# Everything goes through http://127.0.0.1:9124 so connections to the light
+# stay serialized through the one background service.
+set -euo pipefail
+PORT="${LIGHTD_PORT:-9124}"
+BASE="http://127.0.0.1:$PORT"
+H=(-H "Content-Type: application/json" -H "X-Lightd: 1")
+
+post(){ curl -fsS "${H[@]}" -X POST "$BASE$1" -d "${2:-{}}" >/dev/null; }
+get(){ curl -fsS "$BASE$1"; }
+
+cmd="${1:-status}"; shift || true
+case "$cmd" in
+  on)      post /api/set '{"on":1}' ;;
+  off)     post /api/set '{"on":0}' ;;
+  toggle)  on=$(get /api/state | sed -n 's/.*"on":\([01]\).*/\1/p'); \
+           [ "$on" = "1" ] && post /api/set '{"on":0}' || post /api/set '{"on":1}' ;;
+  b)       post /api/set "{\"brightness\":${1:?brightness 1-100},\"on\":1}" ;;
+  k)       post /api/set "{\"kelvin\":${1:?kelvin 2900-7000}}" ;;
+  warm)    post /api/set '{"kelvin":3000,"on":1}' ;;
+  cool)    post /api/set '{"kelvin":7000,"on":1}' ;;
+  day)     post /api/config '{"daylight":true}' ;;
+  signal)  post "/api/event/${1:?signal id}" ;;
+  fx)      post /api/action "{\"effect\":\"${1:-breath}\"}" ;;
+  breath) post /api/action "{\"effect\":\"$cmd\"}" ;;
+  test)    for e in breath; do echo "  $e"; post /api/action "{\"effect\":\"$e\"}"; sleep 7; done ;;
+  panel)   open "$BASE" 2>/dev/null || echo "$BASE" ;;
+  status)  get /api/state; echo ;;
+  *)       post "/api/event/$cmd" ;;   # treat anything else as a moment id
+esac

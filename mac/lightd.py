@@ -72,7 +72,7 @@ DEFAULT_CFG = {
 # settles back, three times in two seconds. Brightness only, never the warmth.
 EFFECTS = {
     "breath": {"label": "Breath", "desc": "Three soft flickers, 10% up and back",
-               "action": {"type": "flicker", "beats": 3, "up": 0.8, "down": 0.5, "delta": 10}},
+               "action": {"type": "flicker", "beats": 3, "glide": 0.9, "delta": 10}},
 }
 EFFECT_ORDER = ["breath"]
 
@@ -507,30 +507,43 @@ class Light:
             self._sweep(bri, 1, 0.6, self._there)
             self.put({"on": 0})
 
+    def _set_fade(self, ms):
+        """Change only how long the light takes to glide between values."""
+        st = self.info.get("settings")
+        if not isinstance(st, dict) or "error" in st:
+            return False
+        new = dict(st)
+        new["colorChangeDurationMs"] = int(ms)
+        try:
+            self.call("put.elgato.lights.settings", new)
+            st["colorChangeDurationMs"] = int(ms)
+            return True
+        except LightError as e:
+            log("couldn't change the fade: %s" % e)
+            return False
+
     def _flicker(self, a):                       # brightness only, warmth pinned where it is
         on, b0, temp = self._prep()
         cap = self.cap()
         d = max(1, round(cap * float(a.get("delta", 10)) / 100))
         hi = b0 + d if b0 + d <= cap else max(1, b0 - d)      # only at the very top does it dip instead
         beats = max(1, min(6, int(a.get("beats", 3))))
-        up, down = float(a.get("up", 0.8)), float(a.get("down", 0.5))
-        steps = abs(hi - b0)
-
-        def glide(a_, b_, seconds):
-            if self.hw_fade:                     # the light glides 0.4s between values: walk it one step at a time
-                sign = 1 if b_ > a_ else -1
-                for i in range(1, steps + 1):
-                    self.put({"brightness": a_ + sign * i, "temperature": temp})
-                    time.sleep(seconds / steps)
-            else:
-                n = max(2, round(seconds / 0.05))
+        glide = float(a.get("glide", 0.9))                     # seconds for each rise and each settle
+        # The light glides by itself. Give it one value per half-beat and a long enough fade,
+        # and never send the next value before the glide has finished: no interruptions, no jumps.
+        if self.hw_fade and self._set_fade(glide * 1000):
+            try:
+                for _ in range(beats):
+                    self.put({"brightness": hi, "temperature": temp}); time.sleep(glide + 0.06)
+                    self.put({"brightness": b0, "temperature": temp}); time.sleep(glide + 0.06)
+            finally:
+                self._set_fade(self.SOFT["colorChangeDurationMs"])
+        else:                                    # no fades in the light: draw the curve ourselves
+            for _ in range(beats):
+                n = max(2, round(2 * glide / 0.05))
                 for i in range(1, n + 1):
-                    self.put({"brightness": self._perceptual(a_, b_, self._there(i / n)), "temperature": temp})
-                    time.sleep(0.05)
-
-        for _ in range(beats):
-            glide(b0, hi, up)
-            glide(hi, b0, down)
+                    v = self._perceptual(b0, hi, self._there_back(i / n))
+                    self.put({"brightness": v, "temperature": temp}); time.sleep(0.05)
         self._finish(on, b0)
 
     # action "type" -> the method that plays it

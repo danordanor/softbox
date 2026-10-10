@@ -13,6 +13,8 @@ import base64, hashlib, json, os, socket, ssl, struct, threading, sys
 HOST, PORT = "127.0.0.1", 9123
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 state = {"on": 1, "brightness": 20, "temperature": 344}
+settings = {"powerOnBehavior": 1, "powerOnBrightness": 20, "powerOnTemperature": 230,
+            "switchOnDurationMs": 100, "switchOffDurationMs": 300, "colorChangeDurationMs": 100}
 CERT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mock.pem")
 
 
@@ -110,6 +112,12 @@ def handle(c):
         elif m == "get.elgato.accessory-info":
             send_text(c, json.dumps({"jsonrpc": "2.0", "id": rid,
                 "result": {"productName": "Elgato Key Light Air MK.2", "serialNumber": "MOCK", "power-info": {"operationMode": 1, "maximumBrightness": 20, "maximumLumen": 180, "source": {"usbStatus": 0, "type": 3, "pdo": {"voltage": 5000, "current": 900}}}}}))
+        elif m == "get.elgato.lights.settings":
+            send_text(c, json.dumps({"jsonrpc": "2.0", "id": rid, "result": settings}))
+        elif m == "put.elgato.lights.settings":
+            settings.update(j.get("params") or {})
+            print("  mock: settings ->", {k: v for k, v in settings.items() if "Duration" in k})
+            send_text(c, json.dumps({"jsonrpc": "2.0", "id": rid, "result": settings}))
         else:
             send_text(c, json.dumps({"jsonrpc": "2.0", "id": rid,
                 "error": {"code": -32601, "message": "Method not found"}}))

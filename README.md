@@ -81,7 +81,7 @@ The installer adds two hooks to `~/.claude/settings.json`:
 | Claude asks for input or approval | three soft breaths |
 | Claude finishes a turn | three soft breaths |
 
-The breath is one gentle effect: the light rises 10% of what the power allows and settles back, three times. Brightness only, never the colour. Remove the hooks with `python3 ~/.softbox/hooks_install.py --remove`.
+The breath is one gentle effect: the light rises 10% of what the power allows and settles back, three times, each glide about a second. Brightness only, never the colour. The light does the gliding itself (its fade is lengthened for the effect and restored after), so nothing steps or jumps. Remove the hooks with `python3 ~/.softbox/hooks_install.py --remove`.
 
 ## CLI and local API
 

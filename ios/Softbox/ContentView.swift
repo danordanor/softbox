@@ -679,7 +679,7 @@ struct EffectGrid: View {
 enum EffectPreview {
     // one loop: the effect as the light plays it, then a short rest
     static func length(_ e: Effect) -> Double {
-        switch e { case .breath: 5.4 }
+        switch e { case .breath: 7 }
     }
     private static func swell(_ x: Double) -> Double { (1 - cos(x * 2 * .pi)) / 2 }      // 0 -> 1 -> 0
     private static func ease(_ x: Double) -> Double { (1 - cos(x * .pi)) / 2 }
@@ -698,9 +698,8 @@ enum EffectPreview {
         switch e {
         // three soft beats, 10% up and back, then a rest
         case .breath:
-            guard t < 3.9 else { return (0.62, 0) }
-            let b = t.truncatingRemainder(dividingBy: 1.3)        // slow rise, quicker settle
-            return (0.62 + 0.28 * (b < 0.8 ? ease(b / 0.8) : 1 - ease((b - 0.8) / 0.5)), 0)
+            guard t < 5.7 else { return (0.62, 0) }
+            return (0.62 + 0.28 * swell(t.truncatingRemainder(dividingBy: 1.9) / 1.9), 0)    // three slow, even beats
         }
     }
 

@@ -28,6 +28,8 @@ final class LightController: NSObject, ObservableObject {
     @Published var maxLumen: Int? = nil
     @Published var watts: Double? = nil
     private var hwFade = false
+    private var fadeBusy = false
+    private var lightSettings: [String: Any]? = nil
 
     // networking
     private var session: URLSession!
@@ -187,7 +189,10 @@ final class LightController: NSObject, ObservableObject {
             }
         }
         // the light's own fade time; when it's soft (set by the Mac), effects let the light glide
-        if let ms = payload?["colorChangeDurationMs"] as? Int { hwFade = ms >= 300 }
+        if let ms = payload?["colorChangeDurationMs"] as? Int {
+            if !fadeBusy { hwFade = ms >= 300 }
+            lightSettings = payload
+        }
         if let lights = payload?["lights"] as? [[String: Any]], let l = lights.first {
             connected = true; statusText = ""
             if let v = l["on"] as? Int { on = v == 1 }
@@ -207,6 +212,17 @@ final class LightController: NSObject, ObservableObject {
     }
 
     func refresh() { rpc("get.elgato.lights", params: [:]) }
+
+    // change only how long the light takes to glide between values (it keeps the rest of its settings)
+    @discardableResult
+    private func setFade(_ ms: Int) -> Bool {
+        guard var st = lightSettings else { return false }
+        st["colorChangeDurationMs"] = ms
+        fadeBusy = ms != 400
+        rpc("put.elgato.lights.settings", params: st)
+        lightSettings = st
+        return true
+    }
 
     private func put(_ light: [String: Any]) {
         rpc("put.elgato.lights", params: ["numberOfLights": 1, "lights": [light]])
@@ -359,28 +375,27 @@ final class LightController: NSObject, ObservableObject {
         let d = max(1, Int((Double(cap) * 0.1).rounded()))
         let hi = b0 + d <= cap ? b0 + d : max(1, b0 - d)     // only at the very top does it dip instead
         let mired = Self.k2m(k0)
-        func glide(_ a: Int, _ b: Int, _ seconds: Double) async {
-            if hwFade {                                       // the light glides 0.4s between values: one step at a time
-                let steps = abs(b - a), sign = b > a ? 1 : -1
-                for i in 1...max(1, steps) {
-                    if Task.isCancelled { return }
-                    put(["brightness": a + sign * i, "temperature": mired])
-                    try? await Task.sleep(nanoseconds: UInt64(seconds / Double(max(1, steps)) * 1e9))
-                }
-            } else {
-                let n = max(2, Int((seconds / 0.05).rounded()))
-                for i in 1...n {
-                    if Task.isCancelled { return }
-                    put(["brightness": Self.perceptual(a, b, Self.there(Double(i) / Double(n))), "temperature": mired])
-                    try? await Task.sleep(nanoseconds: 50_000_000)
-                }
-            }
-        }
+        let glide = 0.9                                       // seconds for each rise and each settle
         switch e {
         case .breath:
-            for _ in 0..<3 {
-                await glide(b0, hi, 0.8)                     // a slow, soft rise
-                await glide(hi, b0, 0.5)                     // and back
+            if hwFade, setFade(Int(glide * 1000)) {
+                // the light glides by itself: one value per half-beat, and never interrupt a glide
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                for _ in 0..<3 {
+                    if Task.isCancelled { break }
+                    put(["brightness": hi, "temperature": mired]); try? await Task.sleep(nanoseconds: UInt64((glide + 0.06) * 1e9))
+                    put(["brightness": b0, "temperature": mired]); try? await Task.sleep(nanoseconds: UInt64((glide + 0.06) * 1e9))
+                }
+                _ = setFade(400)
+            } else {                                          // no fades in the light: draw the curve ourselves
+                for _ in 0..<3 {
+                    let n = Int((2 * glide / 0.05).rounded())
+                    for i in 1...n {
+                        if Task.isCancelled { break }
+                        put(["brightness": Self.perceptual(b0, hi, Self.thereAndBack(Double(i) / Double(n))), "temperature": mired])
+                        try? await Task.sleep(nanoseconds: 50_000_000)
+                    }
+                }
             }
         }
         put(["brightness": b0])                          // settle exactly

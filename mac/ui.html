@@ -445,14 +445,14 @@ async function poll(force){
 new ResizeObserver(layout).observe($('#box'));
 // --- effect previews: a little lamp per effect, looping the way the light moves ---
 const swell=x=>(1-Math.cos(x*2*Math.PI))/2;
-const FX_LEN={breath:5.4};
+const FX_LEN={breath:7};
 const ease=x=>(1-Math.cos(x*Math.PI))/2;
 function keys(k,t){ for(let i=1;i<k.length;i++) if(t<=k[i][0]){ const [t0,v0]=k[i-1],[t1,v1]=k[i]; return v0+(v1-v0)*ease((t-t0)/(t1-t0)); } return k[k.length-1][1]; }
-// the flicker: three soft beats (slow rise, quicker settle), then a rest
+// the breath: three slow, even beats, then a rest
 function fxFrame(id,t){
   t%= (FX_LEN[id]||5.4);
-  if(t>=3.9) return {l:.62,w:0};
-  const b=t%1.3; return {l: .62+.28*(b<.8 ? ease(b/.8) : 1-ease((b-.8)/.5)), w:0};
+  if(t>=5.7) return {l:.62,w:0};
+  return {l: .62+.28*swell((t%1.9)/1.9), w:0};
 }
 const MINI=squircle(11,15,22,30);
 function miniLamp(id,i){ return `<svg class="mini" data-fx="${id}" data-i="${i}" width="22" height="30" viewBox="0 0 22 30"><path d="${MINI}"/></svg>`; }

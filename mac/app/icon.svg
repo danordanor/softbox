@@ -13,6 +13,5 @@
   <rect width="1024" height="1024" rx="230" fill="#111317"/>
   <rect x="300" y="200" width="424" height="624" rx="70" fill="url(#b)"/>
   <rect x="338" y="236" width="348" height="552" rx="54" fill="url(#g)"/>
-  <circle cx="474" cy="562" r="30" fill="#5a3a1f" fill-opacity=".22"/>
-  <circle cx="474" cy="559" r="30" fill="#fff6ec" stroke="#96683f" stroke-opacity=".6" stroke-width="4"/>
+  <circle cx="474" cy="559" r="30" fill="none" stroke="#8c5e38" stroke-opacity=".66" stroke-width="3.4"/>
 </svg>

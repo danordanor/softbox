@@ -806,8 +806,7 @@ struct LampLoader: View {
                     Squircle(n: 4)
                         .fill(RadialGradient(colors: stops, center: .init(x: 0.5, y: 0.4), startRadius: 2, endRadius: 80))
                     Circle()
-                        .fill(Color(red: 1, green: 0.965, blue: 0.925))
-                        .overlay(Circle().stroke(Color(red: 0.59, green: 0.41, blue: 0.25).opacity(0.6), lineWidth: 1))
+                        .stroke(Color(red: 0.55, green: 0.37, blue: 0.22).opacity(0.66), lineWidth: 0.8)
                         .frame(width: 12.2, height: 12.2)
                         .offset(x: u * 36, y: v * 52)
                 }

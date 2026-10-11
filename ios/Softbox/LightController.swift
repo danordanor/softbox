@@ -23,6 +23,9 @@ final class LightController: NSObject, ObservableObject {
     @Published var brightness = 20        // 1...100
     @Published var kelvin = 4500           // 2900...7000
     @Published var statusText = "Looking for your light…"
+    // true once we've seen the light before: the app opens straight onto its last state
+    // and reconnects quietly underneath, instead of showing a loader every time
+    @Published var cached = false
     // what the current power supply allows (the light reports this itself)
     @Published var maxBrightness = 100
     @Published var maxLumen: Int? = nil
@@ -63,10 +66,54 @@ final class LightController: NSObject, ObservableObject {
     override init() {
         super.init()
         loadIdentity()
-        session = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
+        loadCache()
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForRequest = 4            // a dead address fails fast instead of hanging for a minute
+        cfg.waitsForConnectivity = false
+        session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
         guard identity != nil else { return }        // the status already says what's wrong
-        discover()                                   // always look, to keep the address fresh
+        useIP = ip != nil                            // the saved IP connects faster than resolving the .local name
         if host != nil || ip != nil { reconnect() }
+        discover()                                   // always look, to keep the address fresh
+    }
+
+    // the last state the light reported, so the app can show it the moment it opens
+    private func loadCache() {
+        guard let c = UserDefaults.standard.dictionary(forKey: "lastLight") else { return }
+        if let v = c["on"] as? Bool { on = v }
+        if let v = c["brightness"] as? Int { brightness = max(1, min(100, v)) }
+        if let v = c["kelvin"] as? Int { kelvin = max(2900, min(7000, v)) }
+        if let v = c["maxBrightness"] as? Int { maxBrightness = max(1, min(100, v)) }
+        cached = true
+    }
+    private func saveCache() {
+        UserDefaults.standard.set(["on": on, "brightness": brightness, "kelvin": kelvin, "maxBrightness": maxBrightness],
+                                  forKey: "lastLight")
+        cached = true
+    }
+
+    // back in the foreground: check the socket is still alive (iOS drops it while the app sleeps),
+    // and if it doesn't answer quickly, reconnect at once instead of waiting for it to time out
+    private var pingSeq = 0
+    func wake() {
+        guard identity != nil else { return }
+        guard let t = task, connected else {
+            if host != nil || ip != nil { reconnect() } else { discover() }
+            return
+        }
+        pingSeq += 1; let seq = pingSeq
+        t.sendPing { [weak self] err in
+            Task { @MainActor in
+                guard let self, seq == self.pingSeq else { return }
+                self.pingSeq += 1
+                if err != nil { self.connected = false; self.reconnect() } else { self.refresh() }
+            }
+        }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard let self, seq == self.pingSeq else { return }
+            self.pingSeq += 1; self.connected = false; self.reconnect()
+        }
     }
 
     private func reconnect() {
@@ -123,12 +170,15 @@ final class LightController: NSObject, ObservableObject {
     fileprivate func found(host h: String?, ip a: String?) {
         if let h { host = h }
         if let a { ip = a }
-        if !connected { reconnect() }
+        // don't cut short an attempt that's already on its way
+        if !connected && Date().timeIntervalSince(attemptStarted) > 3 { reconnect() }
     }
 
     // MARK: connection
     private var current: String = ""
+    private var attemptStarted = Date.distantPast
     private func connect(to target: String) {
+        attemptStarted = Date()
         task?.cancel(with: .goingAway, reason: nil)
         let h = target.hasSuffix(".") ? String(target.dropLast()) : target
         guard let url = URL(string: "wss://\(h):9123/") else { return }
@@ -168,7 +218,7 @@ final class LightController: NSObject, ObservableObject {
     private func retry() {
         guard !retrying else { return }
         retrying = true
-        Task { try? await Task.sleep(nanoseconds: 2_500_000_000)
+        Task { try? await Task.sleep(nanoseconds: 600_000_000)
             self.retrying = false
             if self.host == nil && self.ip == nil { self.discover() } else { self.reconnect() }
         }
@@ -198,6 +248,7 @@ final class LightController: NSObject, ObservableObject {
             if let v = l["on"] as? Int { on = v == 1 }
             if let v = l["brightness"] as? Int { brightness = max(1, min(100, v)) }
             if let v = l["temperature"] as? Int { kelvin = Int((1_000_000.0 / Double(v)).rounded()) }
+            saveCache()
         }
     }
 

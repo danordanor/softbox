@@ -118,9 +118,9 @@ struct ContentView: View {
                 footer
             }
             .padding(.vertical, 8)
-            if !light.connected { connectOverlay }
+            if !light.connected && !light.cached { connectOverlay }   // only the very first time
         }
-        .animation(.easeOut(duration: 0.6), value: light.connected)
+        .animation(.easeOut(duration: 0.6), value: light.connected || light.cached)
         .foregroundStyle(.white)
         .alert("New preset", isPresented: $showNew) {
             TextField("Name", text: $nameField)
@@ -389,7 +389,7 @@ struct ContentView: View {
     private func pointGesture(_ W: CGFloat, _ H: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("lamp"))
             .onChanged { g in
-                guard light.connected else { return }
+                guard light.connected || light.cached else { return }
                 if axis == 0 {
                     axis = 1; lastTick = nil; Haptics.tap()
                     pressStart = g.startLocation; pressMoved = false
@@ -422,7 +422,7 @@ struct ContentView: View {
     private func lineGesture(_ W: CGFloat, _ H: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("lamp"))
             .onChanged { g in
-                guard light.connected else { return }
+                guard light.connected || light.cached else { return }
                 let x = live?.x ?? ringPoint(W, H).x
                 if axis == 0 { axis = 1; lastTick = nil; Haptics.prepare() }
                 let p = clamp(CGPoint(x: x, y: g.location.y), W, H)
@@ -480,19 +480,18 @@ struct ContentView: View {
                     .frame(width: 44, height: 36).contentShape(Rectangle())
             }
             .buttonStyle(.plain).accessibilityLabel("Off")
-            Text(light.connected ? (light.on ? footerText : "Standby") : "")
+            Text(light.connected || light.cached ? (light.on ? footerText : "Standby") : "")
                 .font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
         }
         .padding(.top, 10)
     }
 
-    // shown until the light answers: the lamp breathing, a quiet word under it
+    // shown only until the light answers for the first time: the lamp and its dot, no words
     private var connectOverlay: some View {
         ZStack {
             Color(red: 0.055, green: 0.059, blue: 0.071)
             // dead centre, same size and resting state as the launch screen, so it flows straight in
             LampLoader()
-            ShimmerText(text: "Connecting").offset(y: 165)
         }
         .ignoresSafeArea()
         .transition(.opacity)

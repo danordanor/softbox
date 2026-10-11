@@ -91,9 +91,9 @@
   .loader{ position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
     opacity:0; pointer-events:none; transition:opacity .6s; z-index:5; }
   .loader.show{ opacity:1; pointer-events:auto; }
-  .loader .lamp-i{ position:relative; width:72px; height:104px; animation:breathe 3.6s ease-in-out infinite; will-change:transform; }
+  .loader .lamp-i{ position:relative; width:72px; height:104px; will-change:transform; }
   .loader .halo{ position:absolute; left:50%; top:50%; width:230px; height:270px; margin:-135px 0 0 -115px; border-radius:50%;
-    background:radial-gradient(closest-side, rgba(255,204,150,.45), transparent 75%); animation:halo 3.6s ease-in-out infinite; will-change:transform; }
+    background:radial-gradient(closest-side, rgba(var(--lg,255,204,150),.45), transparent 75%); will-change:transform,opacity; }
   .loader .msg{ font-size:13px; font-weight:500; letter-spacing:.01em; text-align:center;
     background:linear-gradient(90deg, rgba(242,242,243,.3) 0%, rgba(242,242,243,.3) 35%, rgba(255,255,255,.95) 50%, rgba(242,242,243,.3) 65%, rgba(242,242,243,.3) 100%);
     background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:shimmer 2.4s linear infinite; }
@@ -168,7 +168,7 @@
   <div class="under"><button class="offdot" id="offdot" aria-label="Off"><span></span></button><div class="foot" id="foot">&nbsp;</div></div>
 
   <div class="loader show" id="loader">
-    <div class="lamp-i"><div class="halo"></div><svg width="72" height="104" viewBox="0 0 72 104" style="position:relative"><defs><radialGradient id="lg" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#fff7ee"/><stop offset=".5" stop-color="#ffd6a8"/><stop offset="1" stop-color="#f0b075"/></radialGradient></defs><path id="loaderPath" fill="url(#lg)"/></svg></div>
+    <div class="lamp-i"><div class="halo"></div><svg width="72" height="104" viewBox="0 0 72 104" style="position:relative"><defs><radialGradient id="lg" cx="50%" cy="40%" r="70%"><stop id="lg0" offset="0" stop-color="#fff7ee"/><stop id="lg1" offset=".5" stop-color="#ffd6a8"/><stop id="lg2" offset="1" stop-color="#f0b075"/></radialGradient></defs><path id="loaderPath" fill="url(#lg)"/><circle id="ldot" cx="28.1" cy="60.8" r="6.1" fill="#fff6ec" stroke="#96683f" stroke-opacity=".6" stroke-width="1"/></svg></div>
     <div class="msg" id="loadmsg">Connecting</div>
   </div>
 
@@ -211,6 +211,28 @@ function squircle(cx,cy,w,h,n=4,steps=200){
   return d+'Z';
 }
 $('#loaderPath').setAttribute('d',squircle(36,52,72,104));
+// the loader: a dot wanders over the lamp, and the lamp follows it (warmth across, brightness up),
+// resting where the app icon's dot sits, so the launch screen flows straight in
+(function(){
+  const base=[[255,247,238],[255,214,168],[240,176,117]], R=[-0.22,0.17];
+  const K=[[0,R],[1.4,R],[2.8,[-0.5,0.42]],[4.6,[0.45,-0.42]],[6.2,[0.05,-0.05]],[7.4,R]];
+  const kOf=u=>2900+(u+1)/2*4100, Lof=v=>(1-v)/2, kr=kelvinRGB(kOf(R[0])), Lr=Lof(R[1]);
+  const sm=x=>x<=0?0:x>=1?1:(1-Math.cos(x*Math.PI))/2;
+  const at=t=>{ t%=7.4; for(let i=1;i<K.length;i++) if(t<=K[i][0]){ const [t0,a]=K[i-1],[t1,b]=K[i],f=sm((t-t0)/(t1-t0)); return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]; } return R; };
+  const lamp=$('.loader .lamp-i'), halo=$('.loader .halo'), dot=$('#ldot'), st0=[$('#lg0'),$('#lg1'),$('#lg2')];
+  let t0=null;
+  (function frame(now){
+    if(!$('#loader').classList.contains('show')){ t0=null; requestAnimationFrame(frame); return; }
+    if(t0===null) t0=now;
+    const [u,v]=at((now-t0)/1000), c=kelvinRGB(kOf(u)), L=Lof(v), f=clamp(0.72+0.28*L/Lr,0.62,1.12);
+    st0.forEach((s,i)=>s.setAttribute('stop-color',rgb(base[i].map((x,j)=>Math.round(clamp(x*c[j]/kr[j]*f,0,255))))));
+    dot.setAttribute('cx',(36+u*36).toFixed(2)); dot.setAttribute('cy',(52+v*52).toFixed(2));
+    lamp.style.transform=`scale(${(0.97+0.06*(L-Lr)).toFixed(4)})`;
+    halo.style.opacity=clamp(0.55+0.9*(L-Lr),0.2,1).toFixed(3);
+    document.documentElement.style.setProperty('--lg',c.join(','));
+    requestAnimationFrame(frame);
+  })(performance.now());
+})();
 
 let st={on:1,brightness:50,kelvin:4500,connected:false}; let pw={maxBrightness:100,maxLumen:null,watts:null};
 let scenes=[], W=0, Hh=0;

@@ -755,30 +755,64 @@ enum Haptics {
     static func drop() { softGen.impactOccurred(intensity: 0.7) }
 }
 
-// The loader: the app icon's lamp, breathing in and out with a warm glow.
+// The loader: the app icon's lamp with its dot. The dot wanders over the lamp and the lamp follows it,
+// warmth across and brightness up, then comes back to rest exactly where the icon and launch screen show it.
 // Driven by the clock (not a repeating animation) so it never hitches while the app starts up.
 struct LampLoader: View {
     @State private var start = Date()
-    private let warm = Color(red: 1.0, green: 0.80, blue: 0.59)
+    private static let rest: (Double, Double) = (-0.22, 0.17)
+    private static let keys: [(Double, Double, Double)] = [
+        (0, -0.22, 0.17), (1.4, -0.22, 0.17), (2.8, -0.5, 0.42), (4.6, 0.45, -0.42), (6.2, 0.05, -0.05), (7.4, -0.22, 0.17)]
+    private static let base: [[Double]] = [[255, 247, 238], [255, 214, 168], [240, 176, 117]]
+
+    private static func rgb(_ k: Double) -> [Double] {
+        let t = k / 100
+        var r, g, b: Double
+        if t <= 66 { r = 255; g = 99.47 * log(t) - 161.1; b = t <= 19 ? 0 : 138.5 * log(t - 10) - 305.0 }
+        else { r = 329.7 * pow(t - 60, -0.1332); g = 288.1 * pow(t - 60, -0.0755); b = 255 }
+        return [r, g, b].map { min(255, max(1, $0)) }
+    }
+    private static func kelvin(_ u: Double) -> Double { 2900 + (u + 1) / 2 * 4100 }
+    private static func level(_ v: Double) -> Double { (1 - v) / 2 }
+    private static func smooth(_ x: Double) -> Double { x <= 0 ? 0 : x >= 1 ? 1 : (1 - cos(x * .pi)) / 2 }
+    private static func at(_ t: Double) -> (Double, Double) {
+        let t = t.truncatingRemainder(dividingBy: 7.4)
+        for i in 1..<keys.count where t <= keys[i].0 {
+            let a = keys[i - 1], b = keys[i], f = smooth((t - a.0) / (b.0 - a.0))
+            return (a.1 + (b.1 - a.1) * f, a.2 + (b.2 - a.2) * f)
+        }
+        return rest
+    }
+
     var body: some View {
         TimelineView(.animation) { tl in
-            let t = tl.date.timeIntervalSince(start)
-            let s = (1 - cos(t * 2 * .pi / 3.6)) / 2          // 0 = resting (the launch image), 1 = full breath
+            let (u, v) = Self.at(tl.date.timeIntervalSince(start))
+            let c = Self.rgb(Self.kelvin(u)), cr = Self.rgb(Self.kelvin(Self.rest.0))
+            let L = Self.level(v), Lr = Self.level(Self.rest.1)
+            let f = 0.86 * min(1.2, max(0.62, 0.72 + 0.28 * L / Lr))   // 0.86 at rest, like the launch screen
+            let stops = Self.base.map { s in
+                Color(red: min(255, s[0] * c[0] / cr[0] * f) / 255,
+                      green: min(255, s[1] * c[1] / cr[1] * f) / 255,
+                      blue: min(255, s[2] * c[2] / cr[2] * f) / 255)
+            }
+            let glow = Color(red: c[0] / 255, green: c[1] / 255, blue: c[2] / 255)
             ZStack {
                 Ellipse()
-                    .fill(RadialGradient(colors: [warm.opacity(0.45), warm.opacity(0)],
+                    .fill(RadialGradient(colors: [glow.opacity(0.45), glow.opacity(0)],
                                          center: .center, startRadius: 0, endRadius: 120))
                     .frame(width: 230, height: 270)
-                    .scaleEffect(0.8 + 0.3 * s)
-                    .opacity(0.35 + 0.65 * s)
-                Squircle(n: 4)
-                    .fill(RadialGradient(colors: [Color(red: 1, green: 0.97, blue: 0.93),
-                                                  Color(red: 1, green: 0.84, blue: 0.66),
-                                                  Color(red: 0.94, green: 0.69, blue: 0.46)],
-                                         center: .init(x: 0.5, y: 0.4), startRadius: 2, endRadius: 80))
-                    .frame(width: 72, height: 104)
-                    .brightness(-0.14 + 0.17 * s)
-                    .scaleEffect(0.96 + 0.14 * s)
+                    .opacity(min(1, max(0.2, 0.35 + 0.9 * (L - Lr))))
+                ZStack {
+                    Squircle(n: 4)
+                        .fill(RadialGradient(colors: stops, center: .init(x: 0.5, y: 0.4), startRadius: 2, endRadius: 80))
+                    Circle()
+                        .fill(Color(red: 1, green: 0.965, blue: 0.925))
+                        .overlay(Circle().stroke(Color(red: 0.59, green: 0.41, blue: 0.25).opacity(0.6), lineWidth: 1))
+                        .frame(width: 12.2, height: 12.2)
+                        .offset(x: u * 36, y: v * 52)
+                }
+                .frame(width: 72, height: 104)
+                .scaleEffect(0.96 + 0.08 * (L - Lr))
             }
             .drawingGroup()
         }

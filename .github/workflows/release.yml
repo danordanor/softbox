@@ -93,6 +93,8 @@ jobs:
           [ "$HAS_CERT" = true ] || signed="Unsigned build. Install with the one-line command below, which doesn't trigger Gatekeeper."
           [ "$HAS_CERT" = true ] && [ "$HAS_NOTARY" != true ] && signed="Signed with Developer ID, not notarized."
           cat > notes.md <<NOTES
+          <p align="center"><a href="https://github.com/${{ github.repository }}/blob/main/docs/media/softbox.mp4"><img src="https://github.com/${{ github.repository }}/raw/main/docs/media/softbox.gif" width="480" alt="Softbox in 20 seconds"></a></p>
+
           ## Install or update on your Mac
 
           \`\`\`sh

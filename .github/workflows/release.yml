@@ -92,9 +92,18 @@ jobs:
           ISSUER: ${{ secrets.ASC_ISSUER_ID }}
           P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
-          echo "$P8" | base64 --decode > "$RUNNER_TEMP/key.p8"
+          # pasted values often carry line breaks or extra text: keep only what Apple's IDs look like
+          kid="$(printf '%s' "$KEY_ID" | grep -oE '[A-Z0-9]{10}' | head -1)"
+          iss="$(printf '%s' "$ISSUER" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)"
+          [ -n "$kid" ] || { echo "::error::ASC_KEY_ID should be the 10-character Key ID, e.g. the part after AuthKey_ in the .p8 file name."; exit 1; }
+          [ -n "$iss" ] || { echo "::error::ASC_ISSUER_ID should be the Issuer ID from App Store Connect (looks like 69a6de7e-xxxx-xxxx-xxxx-xxxxxxxxxxxx)."; exit 1; }
+          # the key can be pasted as base64 or as the .p8 text itself
+          if printf '%s' "$P8" | grep -q 'BEGIN PRIVATE KEY'; then printf '%s\n' "$P8" > "$RUNNER_TEMP/key.p8"
+          else printf '%s' "$P8" | tr -d ' \r\n' | base64 --decode > "$RUNNER_TEMP/key.p8"; fi
+          grep -q 'BEGIN PRIVATE KEY' "$RUNNER_TEMP/key.p8" || { echo "::error::ASC_KEY_P8 isn't the .p8 key. Copy it again with: base64 -i AuthKey_XXXX.p8 | pbcopy"; exit 1; }
+          echo "Notarizing with key $kid"
           ditto -c -k --keepParent out/Softbox.app "$RUNNER_TEMP/notarize.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --key "$RUNNER_TEMP/key.p8" --key-id "$KEY_ID" --issuer "$ISSUER" --wait
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --key "$RUNNER_TEMP/key.p8" --key-id "$kid" --issuer "$iss" --wait --timeout 20m
           xcrun stapler staple out/Softbox.app
           spctl --assess --type execute --verbose out/Softbox.app
 

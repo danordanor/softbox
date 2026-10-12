@@ -7,7 +7,7 @@ git tag v1.1.0
 git push origin v1.1.0
 ```
 
-The workflow is `.github/workflows/release.yml`. It can also be run by hand from the **Actions** tab (the build is then kept as an artifact, nothing is published).
+The workflow is `.github/workflows/release.yml`. You can also run it by hand: **Actions → Release → Run workflow**. Enter a version (e.g. `1.0.1`) to publish that release, or leave it empty for a test build that's kept as an artifact.
 
 ## Signing and notarization (once)
 

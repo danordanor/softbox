@@ -28,6 +28,7 @@ cp "$SRC/light" "$HOME_DIR/light"; chmod +x "$HOME_DIR/light"
 # keep the app's source next to the service: when it changes, the service rebuilds the app
 mkdir -p "$HOME_DIR/app"
 cp "$SRC"/app/main.swift "$SRC"/app/build-app.sh "$SRC"/app/Info.plist "$SRC"/app/icon.svg "$HOME_DIR/app/"
+cp "$SRC"/app/icon-1024.png "$HOME_DIR/app/" 2>/dev/null || true
 
 cp "$SRC/hooks_install.py" "$HOME_DIR/"
 if [ "${1:-}" != "--no-hooks" ]; then

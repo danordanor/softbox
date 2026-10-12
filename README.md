@@ -36,13 +36,17 @@ Brightness is shown 0 to 100 **of what your power supply allows**. On a weak USB
 
 ## Install on the Mac
 
+One line, in Terminal:
+
 ```sh
-git clone https://github.com/<you>/softbox.git
-cd softbox/mac
-./install.sh            # add --web for the browser panel, --no-hooks to skip Claude Code
+curl -fsSL https://github.com/danordanor/softbox/releases/latest/download/get.sh | bash
 ```
 
-This mints the certificate into `~/.softbox`, installs the background service (`lightd`) as a LaunchAgent, builds **Softbox.app** into `~/Applications`, and puts the lamp in your menu bar, now and at login. Re-running is safe.
+You need the **Elgato Control Center** app (paired with your light once, Softbox borrows its certificate) and Apple's **Command Line Tools** (`xcode-select --install`, for Python).
+
+This mints the certificate into `~/.softbox`, installs the background service (`lightd`) as a LaunchAgent, puts the signed **Softbox.app** into `~/Applications`, and the lamp in your menu bar, now and at login. Add `-s -- --web` for the browser panel or `-s -- --no-hooks` to skip Claude Code, e.g. `… | bash -s -- --no-hooks`.
+
+**Updating:** run the same line again. Every [release](https://github.com/danordanor/softbox/releases) is listed with what changed.
 
 The light is found automatically with Bonjour. If yours isn't, put its address in `~/.softbox/config.json`:
 
@@ -50,7 +54,17 @@ The light is found automatically with Bonjour. If yours isn't, put its address i
 { "hosts": ["elgato-key-light-air-mk-2-xxxx.local"] }
 ```
 
-**Updating:** `git pull && ./update.sh`. The service restarts in place, and the menu-bar app rebuilds itself when its code changes.
+<details>
+<summary>From source</summary>
+
+```sh
+git clone https://github.com/danordanor/softbox.git
+cd softbox/mac
+./install.sh            # add --web for the browser panel, --no-hooks to skip Claude Code
+```
+
+This builds Softbox.app on your Mac. Update with `git pull && ./update.sh`. The service restarts in place, and the menu-bar app rebuilds itself when its code changes.
+</details>
 
 ## Install on the iPhone
 

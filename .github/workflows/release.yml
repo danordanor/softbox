@@ -1,0 +1,116 @@
+# Push a version tag (git tag v1.0.0 && git push --tags) and this builds the Mac app,
+# signs and notarizes it when the Apple secrets are set, and publishes a GitHub Release with:
+#   Softbox-mac.zip   the Mac installer folder with Softbox.app inside
+#   get.sh            the one-line installer
+#
+# Secrets (Settings → Secrets and variables → Actions), see docs/RELEASING.md:
+#   MACOS_CERT_P12        base64 of your "Developer ID Application" certificate exported as .p12
+#   MACOS_CERT_PASSWORD   the password you gave that .p12
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8   an App Store Connect API key (the .p8 file, base64) for notarization
+# Without them the release still builds, unsigned.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-14
+    env:
+      HAS_CERT: ${{ secrets.MACOS_CERT_P12 != '' }}
+      HAS_NOTARY: ${{ secrets.ASC_KEY_P8 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          v="${GITHUB_REF_NAME#v}"; [[ "$v" =~ ^[0-9] ]] || v="0.0.0-dev"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Import signing certificate
+        if: env.HAS_CERT == 'true'
+        env:
+          P12: ${{ secrets.MACOS_CERT_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/build.keychain"; kp="$(uuidgen)"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$kp" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$kp" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$kc"
+          security set-key-partition-list -S apple-tool:,apple: -k "$kp" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          id="$(security find-identity -v -p codesigning "$kc" | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)"/\1/')"
+          [ -n "$id" ] || { echo "No Developer ID Application identity in the certificate"; exit 1; }
+          echo "SIGN_IDENTITY=$id" >> "$GITHUB_ENV"
+
+      - name: Build Softbox.app
+        run: |
+          mkdir -p out
+          UNIVERSAL=1 VERSION="${{ steps.v.outputs.version }}" bash mac/app/build-app.sh "$PWD/out"
+
+      - name: Notarize
+        if: env.HAS_CERT == 'true' && env.HAS_NOTARY == 'true'
+        env:
+          KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ISSUER: ${{ secrets.ASC_ISSUER_ID }}
+          P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          echo "$P8" | base64 --decode > "$RUNNER_TEMP/key.p8"
+          ditto -c -k --keepParent out/Softbox.app "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --key "$RUNNER_TEMP/key.p8" --key-id "$KEY_ID" --issuer "$ISSUER" --wait
+          xcrun stapler staple out/Softbox.app
+          spctl --assess --type execute --verbose out/Softbox.app
+
+      - name: Package
+        run: |
+          rm -rf pkg && mkdir -p pkg/softbox-mac
+          rsync -a --exclude '.built' mac/ pkg/softbox-mac/
+          ditto out/Softbox.app pkg/softbox-mac/Softbox.app
+          cp LICENSE README.md pkg/softbox-mac/
+          (cd pkg && ditto -c -k --keepParent softbox-mac ../Softbox-mac.zip)
+          cp mac/get.sh get.sh
+
+      - name: Release notes
+        run: |
+          signed="Signed with Developer ID and notarized by Apple."
+          [ "$HAS_CERT" = true ] || signed="Unsigned build. Install with the one-line command below, which doesn't trigger Gatekeeper."
+          [ "$HAS_CERT" = true ] && [ "$HAS_NOTARY" != true ] && signed="Signed with Developer ID, not notarized."
+          cat > notes.md <<NOTES
+          ## Install or update on your Mac
+
+          \`\`\`sh
+          curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/get.sh | bash
+          \`\`\`
+
+          Needs the Elgato Control Center app (paired with your light once) and Apple's Command Line Tools (\`xcode-select --install\`).
+
+          ${signed}
+
+          The iPhone app is built from source in Xcode, see the README.
+          NOTES
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Softbox ${{ steps.v.outputs.version }}
+          body_path: notes.md
+          generate_release_notes: true
+          files: |
+            Softbox-mac.zip
+            get.sh
+
+      - name: Keep the build (manual runs)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Softbox-mac
+          path: Softbox-mac.zip

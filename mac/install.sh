@@ -5,7 +5,8 @@
 #   1. mint a client certificate from the one the Elgato app already ships
 #      (nothing is downloaded; the private key never leaves your machine)
 #   2. install the lightd background service (the backend) as a LaunchAgent
-#   3. build Softbox.app and put it in the menu bar, starting now and at login
+#   3. put Softbox.app in the menu bar, starting now and at login
+#      (the signed app from a release if it's here, otherwise built from source)
 #   4. (optional) wire up Claude Code hooks
 #
 # Re-running it is safe: it refreshes everything and restarts the service.
@@ -33,6 +34,9 @@ bold(){ printf "\033[1m%s\033[0m\n" "$1"; }
 say(){ printf "\033[1m•\033[0m %s\n" "$1"; }
 warn(){ printf "\033[33m•\033[0m %s\n" "$1"; }
 die(){ printf "\033[31m✗ %s\033[0m\n" "$1" >&2; exit 1; }
+
+python3 -c "import ssl" >/dev/null 2>&1 || die "Softbox needs Python 3. Install Apple's Command Line Tools first:  xcode-select --install"
+[ -n "$PY" ] || die "python3 not found"
 
 mkdir -p "$HOME_DIR" "$APPS_DIR" "$AGENTS"
 
@@ -74,13 +78,22 @@ else warn "Service still starting (see $HOME_DIR/lightd.log if the panel stays b
 # keep the app's source next to the service: when it changes, the service rebuilds the app
 mkdir -p "$HOME_DIR/app"
 cp "$SRC"/app/main.swift "$SRC"/app/build-app.sh "$SRC"/app/Info.plist "$SRC"/app/icon.svg "$HOME_DIR/app/"
+cp "$SRC"/app/icon-1024.png "$HOME_DIR/app/" 2>/dev/null || true
 shasum -a 256 "$HOME_DIR/app/main.swift" | cut -d' ' -f1 > "$HOME_DIR/app/.built"   # built just below
 
 # 3. the menu-bar app ------------------------------------------------------
 # quit any running instance so the rebuilt app (and its icon) load clean
 osascript -e 'tell application "Softbox" to quit' 2>/dev/null || true
 killall Softbox 2>/dev/null || true
-if bash "$SRC/app/build-app.sh" "$APPS_DIR"; then
+install_app() {
+  if [ -d "$SRC/Softbox.app" ]; then                 # a release ships the app signed and notarized
+    rm -rf "$APPS_DIR/Softbox.app" && ditto "$SRC/Softbox.app" "$APPS_DIR/Softbox.app"
+    xattr -dr com.apple.quarantine "$APPS_DIR/Softbox.app" 2>/dev/null || true
+  else
+    bash "$SRC/app/build-app.sh" "$APPS_DIR"
+  fi
+}
+if install_app; then
   APLIST="$AGENTS/dev.softbox.app.plist"
   cat > "$APLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

@@ -55,9 +55,18 @@ jobs:
             # newer Keychain exports use AES encryption that this runner's security tool may not read:
             # unwrap with openssl and re-wrap in the classic format. If openssl can't open it either, the password is wrong.
             echo "Retrying with a converted .p12"
-            OSSL="$(brew --prefix openssl@3 2>/dev/null)/bin/openssl"; [ -x "$OSSL" ] || OSSL=openssl
-            "$OSSL" pkcs12 -in "$RUNNER_TEMP/cert.p12" -nodes -passin env:P12_PASSWORD -out "$RUNNER_TEMP/cert.pem" 2>/dev/null \
-              || { echo "::error::The .p12 password doesn't match. Re-enter MACOS_CERT_PASSWORD with the exact password you set when exporting DeveloperID.p12 (or export it again with a new password and update both secrets)."; exit 1; }
+            echo "p12 size: $(wc -c < "$RUNNER_TEMP/cert.p12") bytes, secret length: ${#P12} chars, password length: ${#P12_PASSWORD}"
+            file "$RUNNER_TEMP/cert.p12" || true
+            ok=0
+            for OSSL in "$(brew --prefix openssl@3 2>/dev/null)/bin/openssl" /opt/homebrew/opt/openssl@3/bin/openssl /usr/local/opt/openssl@3/bin/openssl openssl /usr/bin/openssl; do
+              [ -x "$OSSL" ] || command -v "$OSSL" >/dev/null 2>&1 || continue
+              echo "trying $("$OSSL" version)"
+              for extra in "" "-legacy"; do
+                if "$OSSL" pkcs12 $extra -in "$RUNNER_TEMP/cert.p12" -nodes -passin env:P12_PASSWORD -out "$RUNNER_TEMP/cert.pem" 2> "$RUNNER_TEMP/err.txt"; then ok=1; break 2; fi
+                echo "  $extra: $(head -c 300 "$RUNNER_TEMP/err.txt" | tr '\n' ' ')"
+              done
+            done
+            [ "$ok" = 1 ] || { echo "::error::Couldn't open the .p12 with that password (see the lines above for why)."; exit 1; }
             "$OSSL" pkcs12 -export -legacy -in "$RUNNER_TEMP/cert.pem" -passout env:P12_PASSWORD -out "$RUNNER_TEMP/cert2.p12" 2>/dev/null \
               || "$OSSL" pkcs12 -export -in "$RUNNER_TEMP/cert.pem" -passout env:P12_PASSWORD -out "$RUNNER_TEMP/cert2.p12"
             rm -f "$RUNNER_TEMP/cert.pem"

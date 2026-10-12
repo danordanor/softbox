@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Softbox</title>
+<meta name="description" content="Smart lighting for the Elgato Key Light Air. A Mac menu bar app, an iPhone app and Shortcuts. The light breathes when Claude Code needs you.">
+<meta property="og:title" content="Softbox">
+<meta property="og:description" content="Smart lighting for the Elgato Key Light Air.">
+<meta property="og:image" content="https://danordanor.github.io/softbox/images/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0e0f12">
+<link rel="icon" href="media/icon-180.png">
+<link rel="apple-touch-icon" href="media/icon-180.png">
+<style>
+  @font-face{font-family:Geist;src:url(media/Geist-Regular.woff2) format("woff2");font-weight:400;font-display:swap}
+  :root{--bg:#0e0f12;--ink:#f2f2f3;--muted:rgba(242,242,243,.56);--line:rgba(242,242,243,.1);--warm:#ffd6a8}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.55 Geist,-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  main{max-width:720px;margin:0 auto;padding:72px 24px 96px}
+  header{display:flex;align-items:center;gap:16px;margin-bottom:40px}
+  header img{width:56px;height:56px;border-radius:22.5%}
+  h1{font-size:28px;font-weight:400;letter-spacing:-.01em;margin:0}
+  .lead{font-size:clamp(30px,5.4vw,46px);line-height:1.12;letter-spacing:-.02em;margin:0 0 20px;text-wrap:balance}
+  .sub{color:var(--muted);margin:0 0 40px;max-width:560px}
+  video{display:block;width:100%;aspect-ratio:1;border-radius:20px;background:#000;box-shadow:0 0 0 1px var(--line),0 40px 120px rgba(255,200,140,.08)}
+  h2{font-size:15px;font-weight:400;color:var(--muted);margin:56px 0 12px}
+  .cmd{position:relative;display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:14px;background:rgba(242,242,243,.05);box-shadow:inset 0 0 0 1px var(--line)}
+  .cmd code{flex:1;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+  .cmd button{flex:none;border:0;border-radius:9px;padding:7px 12px;background:rgba(242,242,243,.1);color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+  .cmd button:hover{background:rgba(242,242,243,.16)}
+  .note{color:var(--muted);font-size:15px;margin:12px 0 0}
+  ul{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+  li{padding-left:22px;position:relative}
+  li::before{content:"";position:absolute;left:0;top:.62em;width:8px;height:11px;border-radius:34%/26%;background:var(--warm);box-shadow:0 0 10px rgba(255,214,168,.6)}
+  .links{display:flex;flex-wrap:wrap;gap:12px;margin-top:56px}
+  .links a{color:var(--ink);text-decoration:none;padding:10px 16px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+  .links a:hover{background:rgba(242,242,243,.06)}
+  footer{color:var(--muted);font-size:14px;margin-top:64px}
+  a{color:inherit}
+</style>
+</head>
+<body>
+<main>
+  <header><img src="media/icon-180.png" alt=""><h1>Softbox</h1></header>
+  <p class="lead">Smart lighting for the Elgato Key Light.</p>
+  <p class="sub">Elgato's app can't automate the light. Softbox can: from the Mac menu bar, from the iPhone, from Shortcuts. And when Claude needs you, the light breathes.</p>
+
+  <video src="media/softbox.mp4" poster="media/poster.jpg" controls playsinline preload="metadata"></video>
+
+  <h2>Install on your Mac</h2>
+  <div class="cmd"><code id="cmd">curl -fsSL https://github.com/danordanor/softbox/releases/latest/download/get.sh | bash</code><button id="copy" type="button">Copy</button></div>
+  <p class="note">Paste it into Terminal. You need the Elgato Control Center app, paired with your light once. Run the same line again to update.</p>
+
+  <h2>What it does</h2>
+  <ul>
+    <li>The whole light is the control: across is warmth, up is brightness.</li>
+    <li>Presets you place on the light, in the menu bar and on the iPhone.</li>
+    <li>Shortcuts actions, so any automation can set the light.</li>
+    <li>Three soft breaths when Claude Code is waiting for you. No sound, no popup.</li>
+  </ul>
+
+  <div class="links">
+    <a href="https://github.com/danordanor/softbox">Source on GitHub</a>
+    <a href="https://github.com/danordanor/softbox/releases/latest">Latest release</a>
+    <a href="https://github.com/danordanor/softbox#install-on-the-iphone">iPhone app</a>
+  </div>
+
+  <footer>Designed by Danor Beker, built with Claude. Open source, MIT. Not affiliated with Elgato.</footer>
+</main>
+<script>
+  document.getElementById('copy').onclick = async e => {
+    try { await navigator.clipboard.writeText(document.getElementById('cmd').textContent); e.target.textContent = 'Copied'; }
+    catch { e.target.textContent = 'Select and copy'; }
+    setTimeout(() => e.target.textContent = 'Copy', 1600);
+  };
+</script>
+</body>
+</html>

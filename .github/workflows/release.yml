@@ -51,8 +51,19 @@ jobs:
           security create-keychain -p "$kp" "$kc"
           security set-keychain-settings -lut 21600 "$kc"
           security unlock-keychain -p "$kp" "$kc"
-          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -f pkcs12 -k "$kc" -T /usr/bin/codesign -T /usr/bin/security \
-            || { echo "::error::Couldn't open the .p12. Check MACOS_CERT_PASSWORD is the password you set when exporting it."; exit 1; }
+          if ! security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -f pkcs12 -k "$kc" -T /usr/bin/codesign -T /usr/bin/security; then
+            # newer Keychain exports use AES encryption that this runner's security tool may not read:
+            # unwrap with openssl and re-wrap in the classic format. If openssl can't open it either, the password is wrong.
+            echo "Retrying with a converted .p12"
+            OSSL="$(brew --prefix openssl@3 2>/dev/null)/bin/openssl"; [ -x "$OSSL" ] || OSSL=openssl
+            "$OSSL" pkcs12 -in "$RUNNER_TEMP/cert.p12" -nodes -passin env:P12_PASSWORD -out "$RUNNER_TEMP/cert.pem" 2>/dev/null \
+              || { echo "::error::The .p12 password doesn't match. Re-enter MACOS_CERT_PASSWORD with the exact password you set when exporting DeveloperID.p12 (or export it again with a new password and update both secrets)."; exit 1; }
+            "$OSSL" pkcs12 -export -legacy -in "$RUNNER_TEMP/cert.pem" -passout env:P12_PASSWORD -out "$RUNNER_TEMP/cert2.p12" 2>/dev/null \
+              || "$OSSL" pkcs12 -export -in "$RUNNER_TEMP/cert.pem" -passout env:P12_PASSWORD -out "$RUNNER_TEMP/cert2.p12"
+            rm -f "$RUNNER_TEMP/cert.pem"
+            security import "$RUNNER_TEMP/cert2.p12" -P "$P12_PASSWORD" -f pkcs12 -k "$kc" -T /usr/bin/codesign -T /usr/bin/security \
+              || { echo "::error::Couldn't import the certificate even after converting it."; exit 1; }
+          fi
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kp" "$kc" >/dev/null
           security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
           echo "Identities in the certificate:"; security find-identity -v -p codesigning "$kc"

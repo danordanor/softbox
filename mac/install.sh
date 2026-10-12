@@ -26,8 +26,17 @@ APPS_DIR="$HOME/Applications"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 PY="$(command -v python3)"
 PORT="${LIGHTD_PORT:-9124}"
-APP="/Applications/Elgato Control Center.app"
-PKI="$APP/Contents/Resources/pki_Key_Light_Air_Mk2"
+# the Elgato app can live anywhere (plenty of people run it straight from Downloads)
+find_elgato() {
+  local c
+  for c in "${ELGATO_APP:-}" "/Applications/Elgato Control Center.app" "$HOME/Applications/Elgato Control Center.app" \
+           "$HOME/Downloads/Elgato Control Center.app" "$HOME/Desktop/Elgato Control Center.app"; do
+    [ -n "$c" ] && [ -d "$c/Contents/Resources/pki_Key_Light_Air_Mk2" ] && { echo "$c"; return; }
+  done
+  mdfind 'kMDItemFSName == "Elgato Control Center.app"' 2>/dev/null | while read -r c; do
+    [ -d "$c/Contents/Resources/pki_Key_Light_Air_Mk2" ] && { echo "$c"; break; }
+  done
+}
 AGENTS="$HOME/Library/LaunchAgents"
 
 bold(){ printf "\033[1m%s\033[0m\n" "$1"; }
@@ -38,13 +47,21 @@ die(){ printf "\033[31m✗ %s\033[0m\n" "$1" >&2; exit 1; }
 python3 -c "import ssl" >/dev/null 2>&1 || die "Softbox needs Python 3. Install Apple's Command Line Tools first:  xcode-select --install"
 [ -n "$PY" ] || die "python3 not found"
 
+# another light service already on our port (an older or hand-made install) would collide with this one
+if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1 && ! launchctl list 2>/dev/null | grep -q "dev.softbox.lightd"; then
+  die "Something else is already serving port $PORT (another light service?). Stop it first, or install on another port: LIGHTD_PORT=9134 ./install.sh"
+fi
+
 mkdir -p "$HOME_DIR" "$APPS_DIR" "$AGENTS"
 
 # 1. certificate -----------------------------------------------------------
 if [ -f "$HOME_DIR/client-chain.crt" ] && [ -f "$HOME_DIR/client.key" ]; then
   say "Client certificate already present"
 else
-  [ -d "$PKI" ] || die "Elgato Control Center not found. Install it and pair the light first."
+  APP="$(find_elgato)"
+  [ -n "$APP" ] || die "Elgato Control Center not found. Download it from elgato.com/downloads, pair your light with it once, then run this again. (If it's somewhere unusual: ELGATO_APP=/path/to/it.app)"
+  PKI="$APP/Contents/Resources/pki_Key_Light_Air_Mk2"
+  say "Using $APP"
   say "Minting a client certificate from the Elgato app"
   ( cd "$HOME_DIR"
     openssl ecparam -name prime256v1 -genkey -noout -out client.key
@@ -68,7 +85,7 @@ done
 
 BPLIST="$AGENTS/dev.softbox.lightd.plist"
 sed -e "s|__PYTHON__|$PY|g" -e "s|__DIR__|$HOME_DIR|g" -e "s|__HOME__|$HOME_DIR|g" \
-  -e "s|__WEB__|$WEB|g" "$SRC/dev.softbox.lightd.plist.tmpl" > "$BPLIST"
+  -e "s|__WEB__|$WEB|g" -e "s|__PORT__|$PORT|g" "$SRC/dev.softbox.lightd.plist.tmpl" > "$BPLIST"
 launchctl unload "$BPLIST" 2>/dev/null || true
 launchctl load "$BPLIST"
 sleep 2

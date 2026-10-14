@@ -118,9 +118,9 @@ struct ContentView: View {
                 footer
             }
             .padding(.vertical, 8)
-            if !light.connected && !light.cached { connectOverlay }   // only the very first time
+            if !light.connected && !light.cached && !light.demo { connectOverlay }   // only the very first time
         }
-        .animation(.easeOut(duration: 0.6), value: light.connected || light.cached)
+        .animation(.easeOut(duration: 0.6), value: light.connected || light.cached || light.demo)
         .foregroundStyle(.white)
         .alert("New preset", isPresented: $showNew) {
             TextField("Name", text: $nameField)
@@ -389,7 +389,7 @@ struct ContentView: View {
     private func pointGesture(_ W: CGFloat, _ H: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("lamp"))
             .onChanged { g in
-                guard light.connected || light.cached else { return }
+                guard light.connected || light.cached || light.demo else { return }
                 if axis == 0 {
                     axis = 1; lastTick = nil; Haptics.tap()
                     pressStart = g.startLocation; pressMoved = false
@@ -422,7 +422,7 @@ struct ContentView: View {
     private func lineGesture(_ W: CGFloat, _ H: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("lamp"))
             .onChanged { g in
-                guard light.connected || light.cached else { return }
+                guard light.connected || light.cached || light.demo else { return }
                 let x = live?.x ?? ringPoint(W, H).x
                 if axis == 0 { axis = 1; lastTick = nil; Haptics.prepare() }
                 let p = clamp(CGPoint(x: x, y: g.location.y), W, H)
@@ -449,6 +449,13 @@ struct ContentView: View {
     private var header: some View {
         HStack {
             Text("Softbox").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.55))
+            if light.demo {
+                Text("Demo").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(.white.opacity(0.1)))
+                    .accessibilityLabel("Demo mode: the light isn't on this network, nothing is sent")
+                    .transition(.opacity)
+            }
             Spacer()
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape").font(.system(size: 15)).foregroundStyle(.white.opacity(0.6))
@@ -480,7 +487,7 @@ struct ContentView: View {
                     .frame(width: 44, height: 36).contentShape(Rectangle())
             }
             .buttonStyle(.plain).accessibilityLabel("Off")
-            Text(light.connected || light.cached ? (light.on ? footerText : "Standby") : "")
+            Text(light.connected || light.cached || light.demo ? (light.on ? footerText : "Standby") : "")
                 .font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
         }
         .padding(.top, 10)

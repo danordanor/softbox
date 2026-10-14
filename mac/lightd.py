@@ -46,7 +46,7 @@ DEFAULT_CFG = {
             "effect": "breath",
         },
         "claude-done": {
-            "kind": "signal", "enabled": True, "label": "Claude finished",
+            "kind": "signal", "enabled": False, "label": "Claude finished",   # every reply: too often to be on by default
             "effect": "breath",
         },
         "focus": {
@@ -712,6 +712,7 @@ def make_handler(light):
                             act["brightness"] = max(1, round(act["brightness"] * light.cap() / 100))
                     else:
                         act = effect_action(ev.get("effect", "breath"))
+                        log("signal: " + ev.get("label", eid))   # so it's clear what made the light breathe
                     threading.Thread(target=self._safe, args=(act, ev.get("label", eid)), daemon=True).start()
                     return self._json({"ok": True})
                 if path == "/api/config":

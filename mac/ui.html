@@ -183,6 +183,8 @@
     <h3>Rhythm</h3>
     <div class="row"><div><b>Daylight</b><small>Cool by day, warm by evening</small></div>
       <button class="sw" id="daylight" role="switch" aria-checked="false" aria-label="Daylight"></button></div>
+    <h3>Claude</h3>
+    <div id="signals"></div>
     <div class="power" id="power"></div>
     <button class="link" id="reset">Reset presets</button>
   </div>
@@ -432,6 +434,13 @@ function buildSettings(s){
     clearTimeout(c._t); c._t=setTimeout(()=>c.classList.remove('playing'), (FX_LEN[c.dataset.fx]||5)*1000);
   });
   $('#daylight').setAttribute('aria-checked',s.daylight);
+  // when Claude Code makes the light breathe: each signal can be switched off on its own
+  const note={'claude-waiting':'When Claude waits for your answer','claude-done':'After every reply'};
+  const sig=(s.events||[]).filter(e=>e.kind==='signal');
+  $('#signals').innerHTML=sig.map(e=>`<div class="row"><div><b>${e.label}</b><small>${note[e.id]||''}</small></div>
+    <button class="sw" data-sig="${e.id}" role="switch" aria-checked="${!!e.enabled}" aria-label="${e.label}"></button></div>`).join('');
+  $('#signals').querySelectorAll('.sw').forEach(b=>b.onclick=()=>{ const n=b.getAttribute('aria-checked')!=='true';
+    b.setAttribute('aria-checked',n); api('/api/config',{events:{[b.dataset.sig]:{enabled:n}}}); });
 }
 $('#daylight').onclick=e=>{ const n=e.currentTarget.getAttribute('aria-checked')!=='true'; e.currentTarget.setAttribute('aria-checked',n); api('/api/config',{daylight:n}); };
 $('#reset').onclick=()=>{ api('/api/config',{resetScenes:true}).then(()=>poll(true)); };

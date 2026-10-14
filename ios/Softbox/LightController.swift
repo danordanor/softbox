@@ -26,6 +26,9 @@ final class LightController: NSObject, ObservableObject {
     // true once we've seen the light before: the app opens straight onto its last state
     // and reconnects quietly underneath, instead of showing a loader every time
     @Published var cached = false
+    // no light on this network (say, showing the app to someone): the interface works as usual,
+    // but nothing is sent. Turns on by itself after a few seconds without the light, off the moment it answers.
+    @Published var demo = false
     // what the current power supply allows (the light reports this itself)
     @Published var maxBrightness = 100
     @Published var maxLumen: Int? = nil
@@ -75,6 +78,18 @@ final class LightController: NSObject, ObservableObject {
         useIP = ip != nil                            // the saved IP connects faster than resolving the .local name
         if host != nil || ip != nil { reconnect() }
         discover()                                   // always look, to keep the address fresh
+        armDemo()
+    }
+
+    private var demoArm = 0
+    private func armDemo() {
+        demoArm += 1; let n = demoArm
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard let self, n == self.demoArm, !self.connected else { return }
+            if !self.cached { self.on = true; self.brightness = 40; self.kelvin = 4300 }   // a pleasant first look
+            self.demo = true
+        }
     }
 
     // the last state the light reported, so the app can show it the moment it opens
@@ -96,7 +111,8 @@ final class LightController: NSObject, ObservableObject {
     // and if it doesn't answer quickly, reconnect at once instead of waiting for it to time out
     private var pingSeq = 0
     func wake() {
-        guard identity != nil else { return }
+        armDemo()
+        guard identity != nil else { demo = true; return }
         guard let t = task, connected else {
             if host != nil || ip != nil { reconnect() } else { discover() }
             return
@@ -218,7 +234,7 @@ final class LightController: NSObject, ObservableObject {
     private func retry() {
         guard !retrying else { return }
         retrying = true
-        Task { try? await Task.sleep(nanoseconds: 600_000_000)
+        Task { try? await Task.sleep(nanoseconds: self.demo ? 5_000_000_000 : 600_000_000)   // quick to recover, calm when there is no light
             self.retrying = false
             if self.host == nil && self.ip == nil { self.discover() } else { self.reconnect() }
         }
@@ -244,7 +260,7 @@ final class LightController: NSObject, ObservableObject {
             lightSettings = payload
         }
         if let lights = payload?["lights"] as? [[String: Any]], let l = lights.first {
-            connected = true; statusText = ""
+            connected = true; statusText = ""; demo = false
             if let v = l["on"] as? Int { on = v == 1 }
             if let v = l["brightness"] as? Int { brightness = max(1, min(100, v)) }
             if let v = l["temperature"] as? Int { kelvin = Int((1_000_000.0 / Double(v)).rounded()) }
@@ -254,6 +270,7 @@ final class LightController: NSObject, ObservableObject {
 
     // MARK: JSON-RPC
     private func rpc(_ method: String, params: Any?) {
+        if demo && method.hasPrefix("put.") { return }     // demo: the interface moves, the light doesn't
         reqId += 1
         var msg: [String: Any] = ["jsonrpc": "2.0", "id": "\(reqId)", "method": method] // string id!
         if let p = params { msg["params"] = p }

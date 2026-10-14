@@ -618,6 +618,16 @@ struct SettingsView: View {
                         }.tint(green)
                     }
 
+                    sectionTitle("Demo").padding(.top, 28)
+                    Toggle(isOn: Binding(get: { light.forcedDemo }, set: { v in if v != light.forcedDemo { light.toggleDemo() } })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Demo mode").font(.system(size: 15, weight: .medium))
+                            Text("Show the app without the light reacting. Turns on by itself away from the light.")
+                                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.5))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }.tint(green)
+
                     Text(powerText)
                         .font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
                         .fixedSize(horizontal: false, vertical: true)

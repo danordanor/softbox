@@ -449,11 +449,15 @@ struct ContentView: View {
     private var header: some View {
         HStack {
             Text("Softbox").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white.opacity(0.55))
+                .contentShape(Rectangle())
+                .onTapGesture { Haptics.tap(); withAnimation(.easeOut(duration: 0.25)) { light.toggleDemo() } }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint("Turns demo mode on or off")
             if light.demo {
                 Text("Demo").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(.white.opacity(0.1)))
-                    .accessibilityLabel("Demo mode: the light isn't on this network, nothing is sent")
+                    .accessibilityLabel("Demo mode: nothing is sent to the light")
                     .transition(.opacity)
             }
             Spacer()

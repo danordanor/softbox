@@ -29,6 +29,37 @@ final class LightController: NSObject, ObservableObject {
     // no light on this network (say, showing the app to someone): the interface works as usual,
     // but nothing is sent. Turns on by itself after a few seconds without the light, off the moment it answers.
     @Published var demo = false
+    // demo on purpose (tap the title): show the app at home without the light reacting
+    @Published var forcedDemo = false
+    func toggleDemo() {
+        forcedDemo.toggle()
+        demo = forcedDemo || !connected
+        if !forcedDemo && connected { refresh() }        // back to the light's real state
+    }
+    // notice a lost network right away (Wi‑Fi off, walked out of range) instead of waiting on a silent socket
+    private let path = NWPathMonitor()
+    private var lastPath = ""
+    private var heartbeat: Task<Void, Never>?
+    private func watchNetwork() {
+        path.pathUpdateHandler = { [weak self] p in
+            let key = "\(p.status)|\(p.availableInterfaces.map { $0.name }.joined(separator: ","))"
+            Task { @MainActor in
+                guard let self, key != self.lastPath else { return }
+                let first = self.lastPath.isEmpty
+                self.lastPath = key
+                if !first { self.wake() }
+            }
+        }
+        path.start(queue: DispatchQueue(label: "softbox.path"))
+        // and every few seconds, make sure the socket still answers
+        heartbeat = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                guard let self else { return }
+                if self.connected { self.wake() }
+            }
+        }
+    }
     // what the current power supply allows (the light reports this itself)
     @Published var maxBrightness = 100
     @Published var maxLumen: Int? = nil
@@ -79,6 +110,7 @@ final class LightController: NSObject, ObservableObject {
         if host != nil || ip != nil { reconnect() }
         discover()                                   // always look, to keep the address fresh
         armDemo()
+        watchNetwork()
     }
 
     private var demoArm = 0
@@ -126,7 +158,7 @@ final class LightController: NSObject, ObservableObject {
             }
         }
         Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
             guard let self, seq == self.pingSeq else { return }
             self.pingSeq += 1; self.connected = false; self.reconnect()
         }
@@ -260,7 +292,8 @@ final class LightController: NSObject, ObservableObject {
             lightSettings = payload
         }
         if let lights = payload?["lights"] as? [[String: Any]], let l = lights.first {
-            connected = true; statusText = ""; demo = false
+            connected = true; statusText = ""; demo = forcedDemo
+            if forcedDemo { return }                         // demo on purpose: keep showing what the user set
             if let v = l["on"] as? Int { on = v == 1 }
             if let v = l["brightness"] as? Int { brightness = max(1, min(100, v)) }
             if let v = l["temperature"] as? Int { kelvin = Int((1_000_000.0 / Double(v)).rounded()) }

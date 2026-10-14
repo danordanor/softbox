@@ -118,7 +118,6 @@ struct ContentView: View {
                 footer
             }
             .padding(.vertical, 8)
-            if !light.connected && !light.cached && !light.demo { connectOverlay }   // only the very first time
         }
         .animation(.easeOut(duration: 0.6), value: light.connected || light.cached || light.demo)
         .foregroundStyle(.white)
@@ -454,7 +453,10 @@ struct ContentView: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityHint("Turns demo mode on or off")
             if light.demo {
-                Text("Demo").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.7))
+                Group {
+                    if light.searching && !light.forcedDemo { ShimmerText(text: "Demo", size: 11) }
+                    else { Text("Demo").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.7)) }
+                }
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(.white.opacity(0.1)))
                     .accessibilityLabel("Demo mode: nothing is sent to the light")
@@ -530,6 +532,7 @@ struct GapLine: Shape {
 // A word with a soft light passing over it
 struct ShimmerText: View {
     let text: String
+    var size: CGFloat = 13
     @State private var start = Date()
     var body: some View {
         TimelineView(.animation) { tl in
@@ -547,7 +550,7 @@ struct ShimmerText: View {
         .accessibilityLabel(text)
     }
     private var label: some View {
-        Text(text).font(.system(size: 13, weight: .medium)).kerning(0.1)
+        Text(text).font(.system(size: size, weight: size < 13 ? .semibold : .medium)).kerning(0.1)
     }
 }
 

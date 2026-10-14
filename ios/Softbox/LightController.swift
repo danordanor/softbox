@@ -31,6 +31,8 @@ final class LightController: NSObject, ObservableObject {
     @Published var demo = false
     // demo on purpose (tap the title): show the app at home without the light reacting
     @Published var forcedDemo = false
+    // looking for the light right now (the Demo label shimmers while it does)
+    @Published var searching = true
     func toggleDemo() {
         forcedDemo.toggle()
         demo = forcedDemo || !connected
@@ -101,6 +103,8 @@ final class LightController: NSObject, ObservableObject {
         super.init()
         loadIdentity()
         loadCache()
+        if !cached { on = true; brightness = 40; kelvin = 4300 }   // a pleasant first look
+        demo = true                                  // open straight onto the lamp; the light takes over when it answers
         let cfg = URLSessionConfiguration.ephemeral
         cfg.timeoutIntervalForRequest = 4            // a dead address fails fast instead of hanging for a minute
         cfg.waitsForConnectivity = false
@@ -116,11 +120,12 @@ final class LightController: NSObject, ObservableObject {
     private var demoArm = 0
     private func armDemo() {
         demoArm += 1; let n = demoArm
+        if !connected { demo = true; searching = true }
         Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
-            guard let self, n == self.demoArm, !self.connected else { return }
-            if !self.cached { self.on = true; self.brightness = 40; self.kelvin = 4300 }   // a pleasant first look
-            self.demo = true
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard let self, n == self.demoArm else { return }
+            self.searching = false
+            if !self.connected { self.demo = true }
         }
     }
 
@@ -292,7 +297,7 @@ final class LightController: NSObject, ObservableObject {
             lightSettings = payload
         }
         if let lights = payload?["lights"] as? [[String: Any]], let l = lights.first {
-            connected = true; statusText = ""; demo = forcedDemo
+            connected = true; statusText = ""; demo = forcedDemo; searching = false
             if forcedDemo { return }                         // demo on purpose: keep showing what the user set
             if let v = l["on"] as? Int { on = v == 1 }
             if let v = l["brightness"] as? Int { brightness = max(1, min(100, v)) }

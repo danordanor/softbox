@@ -30,7 +30,7 @@ Brightness is shown 0 to 100 **of what your power supply allows**. On a weak USB
 
 ## Requirements
 
-- A Mac with **Elgato Control Center** installed and the light paired once. Softbox mints its client certificate from the one that app ships. Nothing is downloaded and the key never leaves your Mac.
+- A Key Light already set up on your Wi-Fi. Softbox mints its client certificate from the one Elgato Control Center ships. If that app isn't on your Mac, the installer borrows it from Elgato for a moment and deletes it after. The key never leaves your Mac.
 - **Xcode Command Line Tools** for the menu-bar app (`xcode-select --install`), and **Xcode** for the iPhone app.
 - The light, the Mac and the phone on the same Wi-Fi.
 
@@ -42,7 +42,7 @@ One line, in Terminal:
 curl -fsSL https://github.com/danordanor/softbox/releases/latest/download/get.sh | bash
 ```
 
-You need the **Elgato Control Center** app (paired with your light once, Softbox borrows its certificate) and Apple's **Command Line Tools** (`xcode-select --install`, for Python).
+That's it. You don't need Elgato Control Center installed: if it's missing, the installer fetches it from Elgato just long enough to make the certificate. You do need Apple's **Command Line Tools** (`xcode-select --install`, for Python).
 
 This mints the certificate into `~/.softbox`, installs the background service (`lightd`) as a LaunchAgent, puts the signed **Softbox.app** into `~/Applications`, and the lamp in your menu bar, now and at login. Add `-s -- --web` for the browser panel or `-s -- --no-hooks` to skip Claude Code, e.g. `… | bash -s -- --no-hooks`.
 

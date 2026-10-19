@@ -59,7 +59,19 @@ if [ -f "$HOME_DIR/client-chain.crt" ] && [ -f "$HOME_DIR/client.key" ]; then
   say "Client certificate already present"
 else
   APP="$(find_elgato)"
-  [ -n "$APP" ] || die "Elgato Control Center not found. Download it from elgato.com/downloads, pair your light with it once, then run this again. (If it's somewhere unusual: ELGATO_APP=/path/to/it.app)"
+  if [ -z "$APP" ]; then
+    # Not installed: borrow Elgato's own app just long enough to mint the certificate, then throw it away.
+    say "Elgato Control Center not found, fetching it from Elgato for a moment"
+    ECC_TMP="$(mktemp -d)"; trap 'rm -rf "$ECC_TMP"' EXIT
+    ECC_URL="$(curl -fsSL https://formulae.brew.sh/api/cask/elgato-control-center.json 2>/dev/null \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["url"])' 2>/dev/null || true)"
+    case "$ECC_URL" in https://edge.elgato.com/*) ;; *) ECC_URL="https://edge.elgato.com/egc/macos/eccm/1.9/ElgatoControlCenter-1.9.20829.app.zip" ;; esac
+    curl -fsSL "$ECC_URL" -o "$ECC_TMP/ecc.zip" || die "Couldn't download Elgato Control Center. Install it from elgato.com/downloads and run this again."
+    ditto -x -k "$ECC_TMP/ecc.zip" "$ECC_TMP/app" || die "Couldn't unpack Elgato Control Center."
+    APP="$(find "$ECC_TMP/app" -maxdepth 2 -name "*.app" -type d | head -1)"
+    [ -n "$APP" ] && [ -d "$APP/Contents/Resources/pki_Key_Light_Air_Mk2" ] \
+      || die "That Elgato app doesn't carry what Softbox needs. Install Elgato Control Center from elgato.com/downloads and run this again."
+  fi
   PKI="$APP/Contents/Resources/pki_Key_Light_Air_Mk2"
   say "Using $APP"
   say "Minting a client certificate from the Elgato app"

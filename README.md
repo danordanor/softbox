@@ -23,11 +23,11 @@ The MK.2 dropped the open HTTP API the older Key Lights had. It only accepts a *
 | **Claude Code** | The light breathes softly when Claude needs you or finishes. |
 | **Presets** | Drag them anywhere on the light. On iPhone, press and hold to add, rename or delete. |
 | **Soft transitions** | Asks the light for slow fades, so on, off and every change glide instead of jump. |
-
-<p align="center"><img src="docs/images/widget.png" width="600" alt="The home-screen widget: the lamp in its real colour and brightness, warm, cool and off"></p>
 | **Daylight rhythm** | Optional: cool by day, warm by evening. |
 | **CLI and local API** | `light on`, `light b 40`, `light focus`, or a `curl`. |
 | **Web panel** | Optional, for any browser on your network. |
+
+<p align="center"><img src="docs/images/widget.png" width="600" alt="The home-screen widget: the lamp in its real colour and brightness, warm, cool and off"></p>
 
 Brightness is shown 0 to 100 **of what your power supply allows**. On a weak USB port the light caps itself (for example 20% on 4.5 W); Softbox shows the cap and keeps the scale honest. A 30 W USB-C PD charger gives full brightness.
 

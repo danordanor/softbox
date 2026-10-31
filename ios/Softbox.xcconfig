@@ -1,0 +1,13 @@
+// Your own signing for the iPhone app and its widget, in one place.
+// Don't edit this file: put your values in Local.xcconfig next to it (git-ignored), e.g.
+//
+//   DEVELOPMENT_TEAM = ABCDE12345
+//   SOFTBOX_BUNDLE_ID = com.yourname.softbox
+//
+// make-identity.sh writes that file for you the first time.
+
+SOFTBOX_BUNDLE_ID = com.example.softbox
+APP_GROUP = group.$(SOFTBOX_BUNDLE_ID)
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

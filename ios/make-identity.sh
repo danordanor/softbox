@@ -5,10 +5,13 @@
 # It reuses the certificate the Mac app already minted (~/.softbox), or mints a
 # fresh one from the Elgato Control Center app if that's not there. The private
 # key never leaves your machine; it only gets bundled into your own build.
+#
+# Optional: pass your Apple team ID and bundle ID to set up signing too, so the
+# project opens ready to run:   ./make-identity.sh ABCDE12345 com.yourname.softbox
 set -euo pipefail
 cd "$(dirname "$0")"
 
-ELG="$HOME/.softbox"
+ELG="${SOFTBOX_HOME:-$HOME/.softbox}"
 PKI="/Applications/Elgato Control Center.app/Contents/Resources/pki_Key_Light_Air_Mk2"
 OUT="Softbox/Softbox.p12"
 PASS="keylight"
@@ -33,4 +36,12 @@ fi
 
 echo "• Packing it into $OUT"
 openssl pkcs12 -export -inkey "$KEY" -in "$CHAIN" -name Softbox -passout "pass:$PASS" -out "$OUT"
+
+# signing, once: Local.xcconfig stays on this Mac (git-ignored)
+if [ $# -ge 2 ]; then
+  printf "DEVELOPMENT_TEAM = %s\nSOFTBOX_BUNDLE_ID = %s\n" "$1" "$2" > Local.xcconfig
+  echo "• Signing set: team $1, app $2 (widget $2.widget, group group.$2)"
+elif [ ! -f Local.xcconfig ]; then
+  echo "• Tip: ./make-identity.sh YOUR_TEAM_ID com.yourname.softbox sets up signing in one go"
+fi
 echo "Done. Now open Softbox.xcodeproj in Xcode and run it on your iPhone."

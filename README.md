@@ -72,18 +72,21 @@ This builds Softbox.app on your Mac. Update with `git pull && ./update.sh`. The 
 ## Install on the iPhone
 
 ```sh
+git clone https://github.com/danordanor/softbox.git
 cd softbox/ios
 ./make-identity.sh      # packs your certificate into Softbox/Softbox.p12 (stays local)
 open Softbox.xcodeproj
 ```
 
-In Xcode, select the **Softbox** project, then:
+Pass your Apple **team ID** and a bundle ID of your own to set up signing in the same step (it writes `ios/Local.xcconfig`, which stays on your Mac):
 
-1. **Signing & Capabilities**: pick your **Team** for both the **Softbox** and **SoftboxWidget** targets.
-2. **Bundle Identifier**: make it unique, like `com.yourname.softbox`, and the widget's `com.yourname.softbox.widget`.
-3. **Build Settings** of the project: set **APP_GROUP** to `group.com.yourname.softbox`. The app and the widget share the light's state through it.
+```sh
+./make-identity.sh ABCDE12345 com.yourname.softbox
+```
 
-Plug in your iPhone and press ▶. Then long-press the home screen, tap **+**, and add the **Softbox** widget.
+The widget becomes `com.yourname.softbox.widget`, and both share the group `group.com.yourname.softbox`. Your team ID is under *Xcode → Settings → Accounts*, or on developer.apple.com under Membership.
+
+Plug in your iPhone, open the project and press ▶. Then long-press the home screen, tap **+**, and add the **Softbox** widget.
 
 The widget needs App Groups, which a free Apple ID can't sign. With a free ID, delete the **SoftboxWidget** target and clear **Code Signing Entitlements** on the Softbox target; the app works the same without it.
 

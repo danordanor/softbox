@@ -15,3 +15,6 @@ xcuserdata/
 *.xcuserstate
 .DS_Store
 test/mock.pem
+
+# your own signing for the iPhone build
+ios/Local.xcconfig

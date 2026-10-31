@@ -18,6 +18,7 @@ The MK.2 dropped the open HTTP API the older Key Lights had. It only accepts a *
 |---|---|
 | **Mac menu bar** | Click the lamp for the panel, right-click for presets. Starts at login. |
 | **iPhone app** | Native SwiftUI. Finds the light with Bonjour and controls it directly over Wi-Fi. No Mac needed. |
+| **Home-screen widget** | The lamp itself, in its real colour and brightness, no text. Tap the lamp to turn it on or off, tap around it to open the app. |
 | **Shortcuts** | *Play Light Effect*, *Use Light Preset*, *Toggle Light*, *Sunrise*, *Wind Down*. Run them from any automation: an email arriving, an alarm, the charger. |
 | **Claude Code** | The light breathes softly when Claude needs you or finishes. |
 | **Presets** | Drag them anywhere on the light. On iPhone, press and hold to add, rename or delete. |
@@ -74,7 +75,15 @@ cd softbox/ios
 open Softbox.xcodeproj
 ```
 
-In Xcode: select the **Softbox** target, go to **Signing & Capabilities**, pick your **Team** (a free Apple ID works), and change the **Bundle Identifier** to something unique like `com.yourname.softbox`. Plug in your iPhone and press ▶.
+In Xcode, select the **Softbox** project, then:
+
+1. **Signing & Capabilities**: pick your **Team** for both the **Softbox** and **SoftboxWidget** targets.
+2. **Bundle Identifier**: make it unique, like `com.yourname.softbox`, and the widget's `com.yourname.softbox.widget`.
+3. **Build Settings** of the project: set **APP_GROUP** to `group.com.yourname.softbox`. The app and the widget share the light's state through it.
+
+Plug in your iPhone and press ▶. Then long-press the home screen, tap **+**, and add the **Softbox** widget.
+
+The widget needs App Groups, which a free Apple ID can't sign. With a free ID, delete the **SoftboxWidget** target and clear **Code Signing Entitlements** on the Softbox target; the app works the same without it.
 
 On first launch, trust the developer under *Settings → General → VPN & Device Management*, and allow **Local Network**. With a free Apple ID the app needs a fresh ▶ every 7 days; a paid developer account lasts a year.
 
@@ -145,6 +154,7 @@ mac/
 ios/
   Softbox.xcodeproj     the iPhone app
   Softbox/              SwiftUI views, light controller, Shortcuts actions
+  SoftboxWidget/        the home-screen widget
   make-identity.sh      builds the app's client identity from your certificate
 test/mocklight.py       a stand-in light for working without hardware
 docs/PROTOCOL.md        what the MK.2 speaks

@@ -11,6 +11,7 @@ import Foundation
 import Network
 import Combine
 import AppIntents
+import WidgetKit
 
 @MainActor
 final class LightController: NSObject, ObservableObject {
@@ -80,14 +81,14 @@ final class LightController: NSObject, ObservableObject {
     nonisolated(unsafe) private var chain: [SecCertificate] = []
     private var reqId = 0
     private var host: String? {
-        get { UserDefaults.standard.string(forKey: "lightHost") }
-        set { UserDefaults.standard.set(newValue, forKey: "lightHost") }
+        get { Shared.defaults.string(forKey: "lightHost") }
+        set { Shared.defaults.set(newValue, forKey: "lightHost") }
     }
     // the light's IP address, found via Bonjour. Used as a fallback when the
     // .local name doesn't work.
     private var ip: String? {
-        get { UserDefaults.standard.string(forKey: "lightIP") }
-        set { UserDefaults.standard.set(newValue, forKey: "lightIP") }
+        get { Shared.defaults.string(forKey: "lightIP") }
+        set { Shared.defaults.set(newValue, forKey: "lightIP") }
     }
     private var useIP = false
     private var lastError = ""
@@ -131,7 +132,8 @@ final class LightController: NSObject, ObservableObject {
 
     // the last state the light reported, so the app can show it the moment it opens
     private func loadCache() {
-        guard let c = UserDefaults.standard.dictionary(forKey: "lastLight") else { return }
+        Shared.migrate()
+        guard let c = Shared.defaults.dictionary(forKey: "lastLight") else { return }
         if let v = c["on"] as? Bool { on = v }
         if let v = c["brightness"] as? Int { brightness = max(1, min(100, v)) }
         if let v = c["kelvin"] as? Int { kelvin = max(2900, min(7000, v)) }
@@ -139,9 +141,18 @@ final class LightController: NSObject, ObservableObject {
         cached = true
     }
     private func saveCache() {
-        UserDefaults.standard.set(["on": on, "brightness": brightness, "kelvin": kelvin, "maxBrightness": maxBrightness],
-                                  forKey: "lastLight")
+        let now = LampState(on: on, brightness: brightness, kelvin: kelvin, maxBrightness: maxBrightness)
+        let before = LampState.load()
+        now.save()
         cached = true
+        if now != before { reloadWidget() }          // keep the home-screen lamp in step with the real one
+    }
+    private var widgetReload: DispatchWorkItem?
+    private func reloadWidget() {                    // at most one redraw while a drag is still moving
+        widgetReload?.cancel()
+        let w = DispatchWorkItem { WidgetCenter.shared.reloadTimelines(ofKind: Shared.widgetKind) }
+        widgetReload = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: w)
     }
 
     // back in the foreground: check the socket is still alive (iOS drops it while the app sleeps),

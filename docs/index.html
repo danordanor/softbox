@@ -33,6 +33,7 @@
   ul{list-style:none;padding:0;margin:0;display:grid;gap:14px}
   li{padding-left:22px;position:relative}
   li::before{content:"";position:absolute;left:0;top:.62em;width:8px;height:11px;border-radius:34%/26%;background:var(--warm);box-shadow:0 0 10px rgba(255,214,168,.6)}
+  .shot{display:block;width:100%;margin-top:40px;border-radius:20px;box-shadow:0 0 0 1px var(--line)}
   .links{display:flex;flex-wrap:wrap;gap:12px;margin-top:56px}
   .links a{color:var(--ink);text-decoration:none;padding:10px 16px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
   .links a:hover{background:rgba(242,242,243,.06)}
@@ -56,9 +57,12 @@
   <ul>
     <li>The whole light is the control: across is warmth, up is brightness.</li>
     <li>Presets you place on the light, in the menu bar and on the iPhone.</li>
+    <li>A home-screen widget: the lamp itself. Tap it to turn the light on or off.</li>
     <li>Shortcuts actions, so any automation can set the light.</li>
     <li>Three soft breaths when Claude Code is waiting for you. No sound, no popup.</li>
   </ul>
+
+  <img class="shot" src="media/widget.png" alt="The home-screen widget, warm, cool and off">
 
   <div class="links">
     <a href="https://github.com/danordanor/softbox">Source on GitHub</a>

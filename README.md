@@ -2,6 +2,8 @@
 
 A calm, native controller for the **Elgato Key Light Air MK.2**: a Mac menu-bar app, an iPhone app that talks to the light directly, Shortcuts actions, a gentle "Claude needs you" signal for Claude Code, and an optional web panel.
 
+Designed by [Danor Beker](https://danor.studio) and built with [Claude Code](https://claude.com/claude-code). Every change is in the [commit history](https://github.com/danordanor/softbox/commits/main), the rules Claude works by are in [CLAUDE.md](CLAUDE.md), and the [case study](https://danor.studio/projects/softbox/) covers what went wrong along the way.
+
 <p align="center"><a href="https://www.youtube.com/watch?v=-Jyw3JdRxOk"><img src="docs/media/softbox.gif" width="480" alt="Softbox in 20 seconds: Elgato's app can't automate the light, so it becomes smart lighting, controlled from the Mac and iPhone, breathing when Claude needs you"></a><br><sub><a href="https://www.youtube.com/watch?v=-Jyw3JdRxOk">Watch on YouTube</a> · <a href="https://danordanor.github.io/softbox/">Website</a></sub></p>
 
 <p align="center"><img src="docs/images/hero.png" width="740" alt="The Softbox panel: the light as a map, and its settings"></p>

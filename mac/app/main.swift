@@ -12,10 +12,11 @@ let kPort = ProcessInfo.processInfo.environment["LIGHTD_PORT"] ?? "9124"
 let kURL = URL(string: "http://127.0.0.1:\(kPort)/")!
 let kSize = NSSize(width: 360, height: 560)
 
-// MARK: - menu-bar icon drawn in code (template image, adapts to light/dark)
-func lampIcon() -> NSImage {
-    // the Softbox panel, upright: a tall rounded rectangle drawn as an
-    // outline only (no fill), with soft corners.
+// MARK: - menu-bar icon drawn in code
+// The Softbox panel, upright: a tall rounded rectangle drawn as an outline only, with soft
+// corners. While the light is on, the outline takes the light's own colour; off or out of
+// reach, it's a plain template the menu bar tints like everything else.
+func lampIcon(_ tint: NSColor? = nil) -> NSImage {
     let s = NSSize(width: 15, height: 18)
     let img = NSImage(size: s)
     img.lockFocus()
@@ -23,11 +24,21 @@ func lampIcon() -> NSImage {
     let rect = NSRect(x: 2, y: 1.5, width: 11, height: 15)
     let path = NSBezierPath(roundedRect: rect, xRadius: 2.6, yRadius: 2.6)
     path.lineWidth = lw
-    NSColor.black.setStroke()
+    (tint ?? NSColor.black).setStroke()
     path.stroke()
     img.unlockFocus()
-    img.isTemplate = true   // the menu bar tints the outline for us
+    img.isTemplate = tint == nil
     return img
+}
+
+// warmth (Kelvin) -> screen colour, the same curve the panel and the iPhone use
+func kelvinColor(_ k: Double) -> NSColor {
+    let t = k / 100
+    var r, g, b: Double
+    if t <= 66 { r = 255; g = 99.47 * log(t) - 161.1; b = t <= 19 ? 0 : 138.5 * log(t - 10) - 305 }
+    else { r = 329.7 * pow(t - 60, -0.1332); g = 288.1 * pow(t - 60, -0.0755); b = 255 }
+    let c = { (v: Double) in CGFloat(min(255, max(0, v)) / 255) }
+    return NSColor(srgbRed: c(r), green: c(g), blue: c(b), alpha: 1)
 }
 
 // MARK: - app
@@ -75,9 +86,32 @@ class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopoverDeleg
             b.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         load()
+        tintIcon()
+        Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in self?.tintIcon() }
     }
 
     func load() { web.load(URLRequest(url: kURL)) }
+
+    // keep the icon's outline in the light's colour; redraw only when it changes
+    var iconKey = ""
+    func tintIcon() {
+        var req = URLRequest(url: kURL.appendingPathComponent("api/state"))
+        req.timeoutInterval = 2
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, _ in
+            var key = "off", tint: NSColor? = nil
+            if let d = data, let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+               (j["connected"] as? Bool) == true, (j["on"] as? Int) == 1,
+               let k = (j["kelvin"] as? NSNumber)?.doubleValue {
+                let rk = (k / 100).rounded() * 100            // steps of 100K: no redraw for every nudge
+                key = "\(Int(rk))"; tint = kelvinColor(rk)
+            }
+            DispatchQueue.main.async {
+                guard let self, key != self.iconKey else { return }
+                self.iconKey = key
+                self.statusItem.button?.image = lampIcon(tint)
+            }
+        }.resume()
+    }
 
     // links that aren't the panel itself (like shortcuts://) open in their own app
     func webView(_ w: WKWebView, decidePolicyFor action: WKNavigationAction,

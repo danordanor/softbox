@@ -12,7 +12,10 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 ELG="${SOFTBOX_HOME:-$HOME/.softbox}"
-PKI="/Applications/Elgato Control Center.app/Contents/Resources/pki_Key_Light_Air_Mk2"
+PKI=""   # Control Center 1.9.2 moved it inside its SDK bundle, so search the app
+for app in "/Applications/Elgato Control Center.app" "/Applications/ControlCenter.app" "$HOME/Downloads/ControlCenter.app"; do
+  [ -d "$app" ] && PKI="$(find "$app/Contents" -type d -name pki_Key_Light_Air_Mk2 2>/dev/null | head -1)" && [ -n "$PKI" ] && break
+done
 OUT="Softbox/Softbox.p12"
 PASS="keylight"
 
@@ -20,7 +23,7 @@ if [ -f "$ELG/client.key" ] && [ -f "$ELG/client-chain.crt" ]; then
   KEY="$ELG/client.key"; CHAIN="$ELG/client-chain.crt"
   echo "• Using the certificate already in ~/.softbox"
 else
-  [ -d "$PKI" ] || { echo "Elgato Control Center not found, and no cert in ~/.softbox. Install the app and pair the light first." >&2; exit 1; }
+  [ -n "$PKI" ] && [ -d "$PKI" ] || { echo "Elgato Control Center not found, and no cert in ~/.softbox. Install the app and pair the light first." >&2; exit 1; }
   echo "• Minting a client certificate from the Elgato app"
   mkdir -p "$ELG"; cd "$ELG"
   openssl ecparam -name prime256v1 -genkey -noout -out client.key

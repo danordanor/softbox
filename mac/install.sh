@@ -27,15 +27,19 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 PY="$(command -v python3)"
 PORT="${LIGHTD_PORT:-9124}"
 # the Elgato app can live anywhere (plenty of people run it straight from Downloads)
+# Where the app keeps the Key Light's certificate authority. It moved in Control Center 1.9.2
+# (now inside the bundled SDK), so look anywhere in the app rather than at one fixed path.
+pki_in() { [ -d "$1" ] && find "$1/Contents" -type d -name pki_Key_Light_Air_Mk2 2>/dev/null | head -1; }
 find_elgato() {
-  local c
-  for c in "${ELGATO_APP:-}" "/Applications/Elgato Control Center.app" "$HOME/Applications/Elgato Control Center.app" \
-           "$HOME/Downloads/Elgato Control Center.app" "$HOME/Desktop/Elgato Control Center.app"; do
-    [ -n "$c" ] && [ -d "$c/Contents/Resources/pki_Key_Light_Air_Mk2" ] && { echo "$c"; return; }
+  local c n
+  for c in "${ELGATO_APP:-}"; do [ -n "$c" ] && [ -n "$(pki_in "$c")" ] && { echo "$c"; return; }; done
+  for n in "Elgato Control Center.app" "ControlCenter.app"; do
+    for c in "/Applications/$n" "$HOME/Applications/$n" "$HOME/Downloads/$n" "$HOME/Desktop/$n"; do
+      [ -n "$(pki_in "$c")" ] && { echo "$c"; return; }
+    done
   done
-  mdfind 'kMDItemFSName == "Elgato Control Center.app"' 2>/dev/null | while read -r c; do
-    [ -d "$c/Contents/Resources/pki_Key_Light_Air_Mk2" ] && { echo "$c"; break; }
-  done
+  mdfind 'kMDItemCFBundleIdentifier == "com.corsair.ControlCenter" || kMDItemFSName == "Elgato Control Center.app" || kMDItemFSName == "ControlCenter.app"' 2>/dev/null \
+    | while read -r c; do [ -n "$(pki_in "$c")" ] && { echo "$c"; break; }; done
 }
 AGENTS="$HOME/Library/LaunchAgents"
 
@@ -65,14 +69,14 @@ else
     ECC_TMP="$(mktemp -d)"; trap 'rm -rf "$ECC_TMP"' EXIT
     ECC_URL="$(curl -fsSL https://formulae.brew.sh/api/cask/elgato-control-center.json 2>/dev/null \
       | python3 -c 'import json,sys; print(json.load(sys.stdin)["url"])' 2>/dev/null || true)"
-    case "$ECC_URL" in https://edge.elgato.com/*) ;; *) ECC_URL="https://edge.elgato.com/egc/macos/eccm/1.9/ElgatoControlCenter-1.9.20829.app.zip" ;; esac
+    case "$ECC_URL" in https://edge.elgato.com/*) ;; *) ECC_URL="https://edge.elgato.com/egc/macos/eccm/1.9/ElgatoControlCenter-1.9.2.21032.app.zip" ;; esac
     curl -fsSL "$ECC_URL" -o "$ECC_TMP/ecc.zip" || die "Couldn't download Elgato Control Center. Install it from elgato.com/downloads and run this again."
     ditto -x -k "$ECC_TMP/ecc.zip" "$ECC_TMP/app" || die "Couldn't unpack Elgato Control Center."
     APP="$(find "$ECC_TMP/app" -maxdepth 2 -name "*.app" -type d | head -1)"
-    [ -n "$APP" ] && [ -d "$APP/Contents/Resources/pki_Key_Light_Air_Mk2" ] \
-      || die "That Elgato app doesn't carry what Softbox needs. Install Elgato Control Center from elgato.com/downloads and run this again."
+    [ -n "$APP" ] && [ -n "$(pki_in "$APP")" ] \
+      || die "Elgato's app no longer has the Key Light certificate where Softbox looks. Please open an issue on GitHub."
   fi
-  PKI="$APP/Contents/Resources/pki_Key_Light_Air_Mk2"
+  PKI="$(pki_in "$APP")"
   say "Using $APP"
   say "Minting a client certificate from the Elgato app"
   ( cd "$HOME_DIR"

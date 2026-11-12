@@ -42,3 +42,15 @@ struct LampState: Equatable {
                             forKey: "lastLight")
     }
 }
+
+// The warmth x brightness square, stretched onto the lamp's superellipse (n = 4) along rays from the centre.
+enum LampMap {
+    static func toLamp(_ u: Double, _ v: Double) -> (Double, Double) {
+        let m = max(abs(u), abs(v)), r = pow(pow(abs(u), 4) + pow(abs(v), 4), 0.25)
+        return r > 0 ? (u * m / r, v * m / r) : (0, 0)
+    }
+    static func fromLamp(_ x: Double, _ y: Double) -> (Double, Double) {
+        let m = max(abs(x), abs(y)), r = pow(pow(abs(x), 4) + pow(abs(y), 4), 0.25)
+        return m > 0 ? (x * r / m, y * r / m) : (0, 0)
+    }
+}

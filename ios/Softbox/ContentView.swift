@@ -253,11 +253,12 @@ struct ContentView: View {
         return spot(kelvin: light.kelvin, brightness: light.level, W, H)
     }
 
-    // map warmth/brightness to a point on the lamp
+    // map warmth/brightness to a point on the lamp. Warmth x brightness is a square; the lamp is
+    // rounder, so the square is stretched onto it along each ray from the centre. Every corner of
+    // the square lands on the lamp's outline: warmest and dimmest is the lamp's bottom-left.
     private func spot(kelvin k: Int, brightness b: Int, _ W: CGFloat, _ H: CGFloat) -> CGPoint {
-        let kx = CGFloat(k - 2900) / 4100
-        let by = CGFloat(b) / 100
-        return clamp(CGPoint(x: Self.M + kx * (W - 2 * Self.M), y: Self.M + (1 - by) * (H - 2 * Self.M)), W, H)
+        let (x, y) = LampMap.toLamp(Double(k - 2900) / 2050 - 1, 1 - Double(b) / 50)
+        return CGPoint(x: W / 2 + CGFloat(x) * (W / 2 - Self.M), y: H / 2 + CGFloat(y) * (H / 2 - Self.M))
     }
     private func dotSpot(_ p: Preset, _ W: CGFloat, _ H: CGFloat) -> CGPoint {
         spot(kelvin: p.kelvin, brightness: p.brightness, W, H)
@@ -355,10 +356,9 @@ struct ContentView: View {
                     Haptics.pickup()
                 }
                 guard let start = moveStart else { return }
-                let pt = clamp(CGPoint(x: start.x + drag.translation.width,
-                                       y: start.y + drag.translation.height), W, H)
-                movePoint = pt
-                let (k, b) = unspot(pt, W, H)
+                let (k, b) = unspot(CGPoint(x: start.x + drag.translation.width,
+                                            y: start.y + drag.translation.height), W, H)
+                movePoint = spot(kelvin: k, brightness: b, W, H)
                 if presets.v(p.id) != [k, b] {
                     presets.set(p.id, kelvin: k, brightness: b)
                     light.setPoint(kelvin: k, level: b)           // preview it on the light
@@ -372,9 +372,11 @@ struct ContentView: View {
     }
 
     // a point on the lamp -> warmth/brightness (the inverse of spot)
+    // past the outline it keeps going in the square: pushing out towards a corner lands on it
     private func unspot(_ p: CGPoint, _ W: CGFloat, _ H: CGFloat) -> (Int, Int) {
-        let kx = min(1, max(0, Double((p.x - Self.M) / (W - 2 * Self.M))))
-        let by = min(1, max(0, 1 - Double((p.y - Self.M) / (H - 2 * Self.M))))
+        let (u, v) = LampMap.fromLamp(Double((p.x - W / 2) / (W / 2 - Self.M)), Double((p.y - H / 2) / (H / 2 - Self.M)))
+        let kx = min(1, max(0, (u + 1) / 2))
+        let by = min(1, max(0, (1 - v) / 2))
         let k = Int(((2900 + kx * 4100) / 50).rounded()) * 50
         let b = max(1, Int((by * 100).rounded()))
         return (k, b)
@@ -396,7 +398,7 @@ struct ContentView: View {
                     pressTask = Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 550_000_000)
                         guard !Task.isCancelled, !pressMoved, let s = pressStart else { return }
-                        let (k, b) = unspot(clamp(s, W, H), W, H)
+                        let (k, b) = unspot(s, W, H)
                         newPoint = (k, b); nameField = ""
                         Haptics.pickup()
                         showNew = true
@@ -405,9 +407,8 @@ struct ContentView: View {
                 if let s = pressStart, hypot(g.location.x - s.x, g.location.y - s.y) > 10 {
                     pressMoved = true; pressTask?.cancel()
                 }
-                let p = clamp(g.location, W, H)
-                live = p
-                let (k, r) = unspot(p, W, H)
+                let (k, r) = unspot(g.location, W, H)
+                live = spot(kelvin: k, brightness: r, W, H)
                 light.setPoint(kelvin: k, level: r)
                 tickIfNeeded(k / 250 * 1000 + r / 5, edge: false)
             }
@@ -422,11 +423,11 @@ struct ContentView: View {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("lamp"))
             .onChanged { g in
                 guard light.connected || light.cached || light.demo else { return }
-                let x = live?.x ?? ringPoint(W, H).x
                 if axis == 0 { axis = 1; lastTick = nil; Haptics.prepare() }
-                let p = clamp(CGPoint(x: x, y: g.location.y), W, H)
-                live = p
-                let (_, r) = unspot(p, W, H)
+                // brightness straight from the height; the ring follows the lamp's own path
+                let by = 1 - Double((g.location.y - Self.M) / (H - 2 * Self.M))
+                let r = max(1, Int((min(1, max(0, by)) * 100).rounded()))
+                live = spot(kelvin: light.kelvin, brightness: r, W, H)
                 light.setLevel(r)
                 tickIfNeeded(light.level / 5, edge: light.level <= 5 || light.level == 100)
             }

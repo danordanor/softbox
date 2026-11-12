@@ -98,11 +98,12 @@ struct LampWidgetView: View {
         .containerBackground(for: .widget) { Color(red: 0.078, green: 0.082, blue: 0.094) }
     }
 
-    // the dot: across for warmth, up for brightness, like the app
+    // the dot: across for warmth, up for brightness, on the same map as the app
     private func ring(lw: CGFloat, lh: CGFloat) -> some View {
         let m = lw * 0.147
-        let x = m + CGFloat(Double(state.kelvin - 2900) / 4100) * (lw - 2 * m)
-        let y = m + CGFloat(1 - state.level) * (lh - 2 * m)
+        let (u, v) = LampMap.toLamp(Double(state.kelvin - 2900) / 2050 - 1, 1 - 2 * state.level)
+        let x = lw / 2 + CGFloat(u) * (lw / 2 - m)
+        let y = lh / 2 + CGFloat(v) * (lh / 2 - m)
         let stroke = state.on ? Color(red: 0.55, green: 0.37, blue: 0.22).opacity(0.7) : Color.white.opacity(0.35)
         return Circle()
             .stroke(stroke, lineWidth: 1.2)

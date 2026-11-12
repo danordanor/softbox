@@ -254,9 +254,6 @@ function layout(){
 // map warmth/brightness <-> a point on the lamp (warm left, cool right; bright top, dim bottom)
 // the map is the whole lamp: edge to edge, following its rounded outline
 const M=22;
-function inside(x,y){ const cx=W/2, cy=Hh/2, a=W/2-M, b=Hh/2-M;
-  let u=(x-cx)/a, v=(y-cy)/b; const r=Math.pow(Math.pow(Math.abs(u),4)+Math.pow(Math.abs(v),4),.25);
-  if(r>1){ u/=r; v/=r; } return {x:cx+u*a, y:cy+v*b}; }
 // half the lamp's width at height y, 10px in from its outline
 function edgeHalf(y){ const a=W/2-10, b=Hh/2-10, v=Math.min(1,Math.abs((y-Hh/2)/b)); return a*Math.pow(1-Math.pow(v,4),.25); }
 // the ring sits exactly on a preset when the light is set to it
@@ -274,10 +271,16 @@ function placeLabel(btn,p){
   const under=Math.abs(x-blk.x)<(blk.hw||60)+half && Math.abs(y-blk.y)<58+8;
   lab.style.opacity = moving || !((curOp && curOp.id===btn.dataset.id) || under) ? 1 : 0;
 }
-const spot=(k,b)=>inside(M+(k-KMIN)/(KMAX-KMIN)*(W-2*M), M+(1-b/100)*(Hh-2*M));
+// warmth x brightness is a square; the lamp is rounder. Stretch the square onto the lamp along
+// each ray from the centre, so every corner of the square lands on the lamp's outline:
+// warmest and dimmest is the bottom-left of the lamp itself, not a point the ring can't reach.
+function toLamp(u,v){ const m=Math.max(Math.abs(u),Math.abs(v)), r=Math.pow(u**4+v**4,.25); return r?[u*m/r,v*m/r]:[0,0]; }
+function fromLamp(x,y){ const m=Math.max(Math.abs(x),Math.abs(y)), r=Math.pow(x**4+y**4,.25); return m?[x*r/m,y*r/m]:[0,0]; }
+function spot(k,b){ const [x,y]=toLamp(2*(k-KMIN)/(KMAX-KMIN)-1, 1-2*b/100); return {x:W/2+x*(W/2-M), y:Hh/2+y*(Hh/2-M)}; }
 let live=null, blk={x:0,y:0}, curOp=null;   // the ring under the pointer while dragging
 function unspot(x,y){
-  const kx=clamp((x-M)/(W-2*M),0,1), by=clamp(1-(y-M)/(Hh-2*M),0,1);
+  // past the outline, keep going in the square: pushing out towards a corner lands on that corner
+  const [u,v]=fromLamp((x-W/2)/(W/2-M), (y-Hh/2)/(Hh/2-M)), kx=clamp((u+1)/2,0,1), by=clamp((1-v)/2,0,1);
   return {k:Math.round((KMIN+kx*(KMAX-KMIN))/50)*50, b:Math.max(1,Math.round(by*100))};
 }
 
@@ -371,8 +374,7 @@ function attachPreset(btn,sc){
     }
     moved=true;
     const r=$('#box').getBoundingClientRect();
-    const p=inside(e.clientX-r.left+start.ox, e.clientY-r.top+start.oy);
-    const {k,b}=unspot(p.x,p.y);
+    const {k,b}=unspot(e.clientX-r.left+start.ox, e.clientY-r.top+start.oy), p=spot(k,b);
     sc.action.kelvin=k; sc.action.brightness=b;
     btn.style.setProperty('--c',rgb(kelvinRGB(k)));
     btn.style.left=p.x+'px'; btn.style.top=p.y+'px';
@@ -401,7 +403,7 @@ function attachPreset(btn,sc){
 (function(){
   const el=$('#lamp'); let sendT;
   const push=()=>{ clearTimeout(sendT); sendT=setTimeout(()=>api('/api/set',{on:1,brightness:st.brightness,kelvin:st.kelvin}),70); };
-  const at=e=>{ const r=$('#box').getBoundingClientRect(); live=inside(e.clientX-r.left,e.clientY-r.top); return unspot(live.x,live.y); };
+  const at=e=>{ const r=$('#box').getBoundingClientRect(); const v=unspot(e.clientX-r.left,e.clientY-r.top); live=spot(v.k,v.b); return v; };
   const settle=()=>{ clearTimeout(window._ax); window._ax=setTimeout(()=>{axis=0;paint();},700); };
   el.addEventListener('pointerdown',e=>{ if(!st.connected) return; dragging=true; axis=1; el.setPointerCapture(e.pointerId);
     const {k,b}=at(e); st.on=1; st.kelvin=k; st.brightness=actual(b); paint(); push(); });
@@ -413,8 +415,8 @@ function attachPreset(btn,sc){
   const line=$('#level');
   line.addEventListener('pointerdown',e=>{ if(!st.connected) return; e.stopPropagation(); dragging=true; axis=1; line.setPointerCapture(e.pointerId); line.classList.add('active'); });
   line.addEventListener('pointermove',e=>{ if(!dragging) return;
-    const r=$('#box').getBoundingClientRect(); const x=(live||spot(st.kelvin,rel())).x;
-    live=inside(x,e.clientY-r.top); const {b}=unspot(live.x,live.y);
+    const r=$('#box').getBoundingClientRect();
+    const b=Math.max(1,Math.round(clamp(1-(e.clientY-r.top-M)/(Hh-2*M),0,1)*100)); live=spot(st.kelvin,b);
     st.on=1; st.brightness=actual(b); paint(); push(); });
   const lend=()=>{ if(!dragging) return; dragging=false; live=null; line.classList.remove('active'); settle(); paint(); };
   line.addEventListener('pointerup',lend); line.addEventListener('pointercancel',lend);

@@ -13,9 +13,9 @@ let kURL = URL(string: "http://127.0.0.1:\(kPort)/")!
 let kSize = NSSize(width: 360, height: 560)
 
 // MARK: - menu-bar icon drawn in code
-// The Softbox panel, upright: a tall rounded rectangle drawn as an outline only, with soft
-// corners. While the light is on, the outline takes the light's own colour; off or out of
-// reach, it's a plain template the menu bar tints like everything else.
+// The Softbox panel, upright: a tall rounded rectangle with soft corners. While the light is
+// on, it's filled with the light's own colour; off or out of reach, it's a plain outline
+// the menu bar tints like everything else.
 func lampIcon(_ tint: NSColor? = nil) -> NSImage {
     let s = NSSize(width: 15, height: 18)
     let img = NSImage(size: s)
@@ -24,8 +24,11 @@ func lampIcon(_ tint: NSColor? = nil) -> NSImage {
     let rect = NSRect(x: 2, y: 1.5, width: 11, height: 15)
     let path = NSBezierPath(roundedRect: rect, xRadius: 2.6, yRadius: 2.6)
     path.lineWidth = lw
-    (tint ?? NSColor.black).setStroke()
-    path.stroke()
+    if let tint {
+        tint.setFill(); path.fill()
+    } else {
+        NSColor.black.setStroke(); path.stroke()
+    }
     img.unlockFocus()
     img.isTemplate = tint == nil
     return img
@@ -92,7 +95,7 @@ class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopoverDeleg
 
     func load() { web.load(URLRequest(url: kURL)) }
 
-    // keep the icon's outline in the light's colour; redraw only when it changes
+    // keep the icon filled with the light's colour; redraw only when it changes
     var iconKey = ""
     func tintIcon() {
         var req = URLRequest(url: kURL.appendingPathComponent("api/state"))

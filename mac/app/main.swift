@@ -13,7 +13,7 @@ let kURL = URL(string: "http://127.0.0.1:\(kPort)/")!
 let kSize = NSSize(width: 360, height: 560)
 
 // MARK: - menu-bar icon drawn in code
-// The Softbox panel, upright: a tall rounded rectangle with soft corners. While the light is
+// The lamp from the panel, small: the same rounded shape. While the light is
 // on, it's filled with the light's own colour; off or out of reach, it's a plain outline
 // the menu bar tints like everything else.
 func lampIcon(_ tint: NSColor? = nil) -> NSImage {
@@ -21,8 +21,8 @@ func lampIcon(_ tint: NSColor? = nil) -> NSImage {
     let img = NSImage(size: s)
     img.lockFocus()
     let lw: CGFloat = 1.5
-    let rect = NSRect(x: 2, y: 1.5, width: 11, height: 15)
-    let path = NSBezierPath(roundedRect: rect, xRadius: 2.6, yRadius: 2.6)
+    // the same superellipse (n = 4) and proportions as the lamp in the panel
+    let path = squircle(NSRect(x: 1.9, y: 1.5, width: 11.2, height: 15), inset: tint == nil ? lw / 2 : 0)
     path.lineWidth = lw
     if let tint {
         tint.setFill(); path.fill()
@@ -32,6 +32,20 @@ func lampIcon(_ tint: NSColor? = nil) -> NSImage {
     img.unlockFocus()
     img.isTemplate = tint == nil
     return img
+}
+
+// the panel's lamp outline: |x/a|^4 + |y/b|^4 = 1
+func squircle(_ r: NSRect, inset: CGFloat = 0, n: Double = 4) -> NSBezierPath {
+    let p = NSBezierPath()
+    let a = Double(r.width) / 2 - Double(inset), b = Double(r.height) / 2 - Double(inset)
+    for i in 0..<120 {
+        let t = 2 * Double.pi * Double(i) / 120, c = cos(t), s = sin(t)
+        let pt = NSPoint(x: Double(r.midX) + a * copysign(pow(abs(c), 2 / n), c),
+                         y: Double(r.midY) + b * copysign(pow(abs(s), 2 / n), s))
+        if i == 0 { p.move(to: pt) } else { p.line(to: pt) }
+    }
+    p.close()
+    return p
 }
 
 // warmth (Kelvin) -> screen colour, the same curve the panel and the iPhone use

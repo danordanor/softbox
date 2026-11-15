@@ -13,22 +13,19 @@ let kURL = URL(string: "http://127.0.0.1:\(kPort)/")!
 let kSize = NSSize(width: 360, height: 560)
 
 // MARK: - menu-bar icon drawn in code
-// The lamp from the panel, small: the same rounded shape. While the light is
-// on, it's filled with the light's own colour; off or out of reach, it's a plain outline
-// the menu bar tints like everything else.
+// The lamp from the panel, small: the same rounded shape, as a thin outline. While the
+// light is on, the outline takes the light's own colour; off or out of reach, it's a
+// plain template the menu bar tints like everything else.
 func lampIcon(_ tint: NSColor? = nil) -> NSImage {
     let s = NSSize(width: 15, height: 18)
     let img = NSImage(size: s)
     img.lockFocus()
-    let lw: CGFloat = 1.5
+    let lw: CGFloat = 1
     // the same superellipse (n = 4) and proportions as the lamp in the panel
-    let path = squircle(NSRect(x: 1.9, y: 1.5, width: 11.2, height: 15), inset: tint == nil ? lw / 2 : 0)
+    let path = squircle(NSRect(x: 1.9, y: 1.5, width: 11.2, height: 15), inset: lw / 2)
     path.lineWidth = lw
-    if let tint {
-        tint.setFill(); path.fill()
-    } else {
-        NSColor.black.setStroke(); path.stroke()
-    }
+    (tint ?? NSColor.black).setStroke()
+    path.stroke()
     img.unlockFocus()
     img.isTemplate = tint == nil
     return img
@@ -109,7 +106,7 @@ class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopoverDeleg
 
     func load() { web.load(URLRequest(url: kURL)) }
 
-    // keep the icon filled with the light's colour; redraw only when it changes
+    // keep the icon's outline in the light's colour; redraw only when it changes
     var iconKey = ""
     func tintIcon() {
         var req = URLRequest(url: kURL.appendingPathComponent("api/state"))
